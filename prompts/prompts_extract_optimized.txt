@@ -1,0 +1,191 @@
+"""
+优化版提取Prompt - 专为霉菌毒素降解酶数据库设计
+
+关键改进：
+1. 保持霉菌毒素底物限制（核心目标不变）
+2. 放宽序列ID要求（focus on data, not sequence）
+3. 优化kcat/Vmax提取策略
+4. 减少Token消耗
+5. 便于数据库转换
+"""
+
+OPTIMIZED_TEXT_PROMPT = """
+# Mycotoxin-Degrading Enzyme Kinetics Extraction v7.0
+
+## 🎯 FOCUS: Mycotoxin-Degrading Enzyme Database
+
+**Goal**: Extract comprehensive kinetic data for mycotoxin-degrading enzymes.
+
+---
+
+## ⚠️ SUBSTRATE FILTER (STRICT)
+
+**✅ ACCEPT: Mycotoxin substrates ONLY**
+
+Complete list:
+- **Aflatoxins**: AFB1, AFB2, AFG1, AFG2, AFM1, AFM2
+- **Ochratoxins**: OTA, OTB, OTC
+- **Trichothecenes**: DON, NIV, T-2, HT-2, 3-ADON, 15-ADON, DAS
+- **Fumonisins**: FB1, FB2, FB3, HFB1
+- **Zearalenones**: ZEN, α-ZEL, β-ZEL
+- **Others**: Patulin, Citrinin, Sterigmatocystin
+
+**❌ REJECT**: Generic enzyme substrates (ABTS, guaiacol, etc.)
+
+---
+
+## 🔬 ENZYME IDENTIFICATION (RELAXED)
+
+**ACCEPT enzymes with**:
+- ✅ Enzyme name + organism (minimum requirement)
+- ✅ Gene name (preferred for sequence lookup)
+- ✅ UniProt/GenBank/PDB ID (best for sequence lookup)
+
+**ACCEPT from**:
+- ✅ Purified enzymes
+- ✅ Recombinant enzymes
+- ✅ Cell-free extracts (IF gene/sequence identifiable)
+- ✅ Crude extracts (ONLY IF specific gene mentioned)
+
+**REJECT**:
+- ❌ Commercial enzyme preparations (Sigma, Novozyme, etc.)
+- ❌ "Enzyme cocktail" or "mixed enzymes"
+- ❌ Uncharacterized fungal/bacterial cultures
+
+---
+
+## 📊 KINETIC PARAMETER EXTRACTION
+
+### Primary Parameters
+- **Km**: Michaelis constant (μM, mM, nM, M)
+- **kcat**: Turnover number (s⁻¹, min⁻¹)
+- **kcat/Km**: Catalytic efficiency (M⁻¹s⁻¹, mM⁻¹s⁻¹)
+
+### Secondary Parameters
+- **Vmax**: Maximum velocity (μM/min, nmol/min/mg, etc.)
+- **Degradation efficiency**: Percentage (%)
+
+### ⚠️ CRITICAL: Vmax vs kcat Distinction
+
+| Article Reports | Extract As | Notes |
+|----------------|------------|-------|
+| "kcat = 120 s⁻¹" | kcat_value: 120, kcat_unit: "s⁻¹" | Direct kcat |
+| "Vmax/E0 = 27 min⁻¹" | kcat_value: 27, kcat_unit: "min⁻¹" | This IS kcat! |
+| "Vmax = 15 μM/min" | Vmax_value: 15, Vmax_unit: "μM/min" | Standalone Vmax |
+| "molecular activity = 45 s⁻¹" | kcat_value: 45, kcat_unit: "s⁻¹" | Alternative kcat name |
+
+**RULE**: If article uses "Vmax/E0", "Vmax/[E]", or "molecular activity", extract as **kcat**, NOT Vmax.
+
+---
+
+## 🚨 PROHIBITED: Fold Changes to Absolute Values
+
+**NEVER convert relative changes to absolute values:**
+
+❌ "45-fold increase in kcat" → Do NOT fill kcat_value
+❌ "3× higher than WT" → Do NOT fill kcat_value
+❌ "2.5-fold improvement" → Do NOT fill Km_value
+
+✅ **Correct approach**: Leave value as `null`, note in `notes`
+
+---
+
+## 📝 OUTPUT SCHEMA
+
+```json
+[{
+  "enzyme_name": "short name (REQUIRED)",
+  "enzyme_full_name": "full name or null",
+  "enzyme_type": "laccase/peroxidase/oxidase/reductase/hydrolase or null",
+  "ec_number": "EC X.X.X.X or null",
+  "gene_name": "gene symbol or null",
+  "uniprot_id": "accession or null",
+  "genbank_id": "GenBank ID or null",
+  "pdb_id": "PDB ID or null",
+  "sequence": "amino acid sequence or null",
+
+  "organism": "FULL species name (REQUIRED)",
+  "strain": "strain info or null",
+  "is_recombinant": true/false/null,
+  "is_wild_type": true/false/null,
+  "mutations": "mutation codes (e.g., E186R) or null",
+
+  "substrate": "STANDARD mycotoxin name (REQUIRED)",
+  "substrate_smiles": "SMILES string or null",
+
+  "Km_value": "number or null",
+  "Km_unit": "μM/mM/nM/M",
+
+  "Vmax_value": "number or null (ONLY standalone Vmax, NOT Vmax/E0)",
+  "Vmax_unit": "μM/min/nmol/min/mg or null",
+
+  "kcat_value": "number or null",
+  "kcat_unit": "s⁻¹/min⁻¹ or null",
+
+  "kcat_Km_value": "number or null",
+  "kcat_Km_unit": "M⁻¹s⁻¹/mM⁻¹s⁻¹ or null",
+
+  "degradation_efficiency": "percentage or null",
+  "reaction_time_value": "number or null",
+  "reaction_time_unit": "h/min or null",
+
+  "products": [
+    {"name": "product name", "toxicity_change": "less toxic|non-toxic|null"}
+  ],
+
+  "temperature_value": "number or null",
+  "temperature_unit": "°C or null",
+  "ph": "number or null",
+  "optimal_ph": "value or range or null",
+  "optimal_temperature_value": "number or null",
+  "optimal_temperature_unit": "°C or null",
+
+  "notes": "additional remarks (e.g., 'Vmax/E0 reported as kcat')",
+
+  "data_source_type": "text/table/figure",
+  "source_location": "Table X, Figure Y, or Section X.X"
+}]
+```
+
+---
+
+## 🎯 SUBSTRATE STANDARDIZATION
+
+**Always use FULL names (NOT abbreviations):**
+
+| ❌ Abbreviation | ✅ Standard Name |
+|-----------------|---------------|
+| AFB1, AFB₁ | Aflatoxin B1 |
+| OTA | Ochratoxin A |
+| DON | Deoxynivalenol |
+| ZEN | Zearalenone |
+| FB1 | Fumonisin B1 |
+
+---
+
+## 📋 EXTRACTION RULES
+
+1. **Extract ALL valid data** - even if incomplete
+2. **Standardize substrate names** - use full chemical names
+3. **Distinguish Vmax vs kcat** - see table above
+4. **Multiple substrates = multiple records** - create separate record for each
+5. **Document data source** - specify where data came from
+
+---
+
+## Extract from the following text:
+
+{TEXT_CONTENT}
+
+**Return ONLY the JSON array. No explanations.**
+"""
+
+
+# 快速应用函数
+def apply_optimized_prompts():
+    """应用优化后的prompt"""
+    return {
+        'text': OPTIMIZED_TEXT_PROMPT,
+        'aggregation': get_optimized_aggregation_prompt(),
+        'database_schema': DATABASE_SCHEMA
+    }

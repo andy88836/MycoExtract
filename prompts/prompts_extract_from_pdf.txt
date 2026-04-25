@@ -1,0 +1,127 @@
+# Mycotoxin Enzyme Kinetics Extraction - PDF Direct Mode v1.0
+
+## Task
+You are analyzing scientific paper images (PDF pages). Extract ALL enzyme kinetics and degradation data related to mycotoxin research from both text AND tables visible in the images.
+
+## IMPORTANT: Multi-Page Analysis
+- You will receive multiple page images from a single PDF document
+- Analyze ALL pages together to build complete understanding
+- Cross-reference information across pages (e.g., enzyme mentioned on page 1, kinetics data on page 5)
+- Tables often span multiple pages - combine data from continuation tables
+- Methods section may define conditions used throughout the paper
+
+## What to Extract
+
+### Extraction Triggers (ANY one)
+- Has Km OR Vmax OR kcat OR kcat/Km values (in text OR tables)
+- Has enzyme + substrate + degradation efficiency/products
+- Has enzyme + substrate + EC number/UniProt ID
+- Tables containing kinetic parameters
+
+### Key Data Sources to Scan:
+1. **Abstract** - Often summarizes key findings
+2. **Results tables** - Primary source for kinetic parameters
+3. **Text paragraphs** - Contains context, enzyme names, organisms
+4. **Figure captions** - May contain supplementary data
+5. **Materials & Methods** - Organism sources, conditions
+
+## JSON Schema
+```json
+[{
+  "enzyme_name": "Short name (e.g., CotA, AFO, His6-OPH) - REQUIRED",
+  "enzyme_full_name": "Full name from text - null if not found",
+  "enzyme_type": "Class: laccase/peroxidase/oxidase/reductase/hydrolase/protease - null if unclear",
+  "ec_number": "EC X.X.X.X format - null if absent",
+  "gene_name": "Gene symbol (lowercase) - null if absent",
+  
+  "uniprot_id": "UniProt accession (e.g., Q8X1Z5) - null if absent",
+  "genbank_id": "GenBank ID - null if absent",
+  "pdb_id": "PDB ID - null if absent",
+  "sequence": "Amino acid sequence if provided - null if absent",
+  
+  "organism": "Source organism (full species name) - null if absent",
+  "strain": "Strain info - null if absent",
+  "is_recombinant": true/false/null,
+  "is_wild_type": true/false/null,
+  "mutations": "Mutation codes (e.g., N208S) - null if wild-type",
+  
+  "substrate": "Mycotoxin substrate (e.g., AFB1, OTA, ZEN) - REQUIRED",
+  "substrate_smiles": "SMILES string - null if absent",
+  "substrate_concentration": "e.g., 10 μM - null if absent",
+  
+  "Km_value": number or null,
+  "Km_unit": "μM/mM or null",
+  "Vmax_value": number or null,
+  "Vmax_unit": "μM/min or null",
+  "kcat_value": number or null,
+  "kcat_unit": "s⁻¹/min⁻¹ or null",
+  "kcat_Km_value": number or null,
+  "kcat_Km_unit": "M⁻¹s⁻¹ or null",
+  
+  "degradation_efficiency": percentage_number or null,
+  "reaction_time_value": number or null,
+  "reaction_time_unit": "h/min or null",
+  
+  "products": [{"name": "product name", "toxicity_change": "less toxic/non-mutagenic/null"}],
+  
+  "temperature_value": number or null,
+  "temperature_unit": "°C or null",
+  "ph": number or null,
+  "optimal_ph": "range or value or null",
+  "optimal_temperature_value": number or null,
+  "optimal_temperature_unit": "°C or null",
+  
+  "source_location": "Brief description: 'Table 1', 'Abstract', 'Results section page X'",
+  "notes": "Additional context or remarks",
+  "confidence_score": 1-5
+}]
+```
+
+## Critical Extraction Rules
+
+### 1. Table Reading
+- Read ALL columns and rows carefully
+- Match column headers with values correctly
+- If table continues on next page, combine data
+- Standard deviations (±) should be noted but not included in the main value
+
+### 2. Unit Conversion
+- Keep original units from the paper
+- Note unit in the appropriate *_unit field
+- Common units: μM, mM, nM for Km; μM/min, U/mg for Vmax; s⁻¹ for kcat; M⁻¹s⁻¹ for kcat/Km
+
+### 3. Multi-Entry Handling
+- Each enzyme-substrate combination = separate record
+- Different conditions (pH, temperature variants) for same enzyme-substrate = separate records if kinetic values differ
+- Mutant vs wild-type = separate records
+
+### 4. Context Inference
+- Link enzyme names to their full descriptions
+- Expand abbreviated species names (B. subtilis → Bacillus subtilis)
+- Distinguish source organism from expression host
+
+### 5. Confidence Scoring
+| Score | Criteria |
+|-------|----------|
+| 5 | Complete data: kinetics + organism + conditions + IDs |
+| 4 | Has kinetics + organism OR enzyme_full_name |
+| 3 | Has kinetics, partial metadata |
+| 2 | Sparse data, some key fields missing |
+| 1 | Minimal/uncertain data |
+
+## Output Format
+- Return ONLY valid JSON array
+- No markdown code blocks
+- No explanatory text before or after
+- Empty array [] if no relevant data found
+
+## Common Mycotoxin Abbreviations
+- AFB1/AFB2: Aflatoxin B1/B2
+- OTA: Ochratoxin A
+- ZEN/ZEA: Zearalenone
+- DON: Deoxynivalenol
+- FB1/FB2: Fumonisin B1/B2
+- T-2: T-2 toxin
+- PAT: Patulin
+
+Now analyze the provided PDF page images and extract all enzyme kinetics data:

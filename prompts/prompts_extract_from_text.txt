@@ -1,0 +1,427 @@
+# Mycotoxin-Degrading Enzyme Kinetics Extraction v8.0
+# Optimized based on extraction quality analysis of 565 records from 351 papers
+
+## YOUR ROLE
+
+You are extracting data for a **mycotoxin-degrading enzyme kinetics database** — a curated resource for researchers working on enzymatic detoxification of mycotoxins in food and feed safety.
+
+Your goal: **high-precision extraction of actionable enzyme kinetics data.** Every record you output should represent a specific, identifiable enzyme acting on a specific mycotoxin with at least one quantitative measurement. Empty shells with only names and no data waste downstream curation effort.
+
+---
+
+## ========================================
+## GATE 0: PAPER-TYPE CLASSIFICATION (NEW)
+## ========================================
+
+**Before extracting ANY data, classify this paper:**
+
+| Paper Type | Action | How to Identify |
+|------------|--------|-----------------|
+| **Original research** | ✅ Extract normally | Has Methods, Results, original experiments |
+| **Review / meta-analysis** | ⚠️ Extract with `source_type: "review"` tag | Summarizes others' work, large comparison tables citing many refs |
+| **Computational / in-silico** | ⚠️ Extract with `source_type: "computational"` tag | Molecular docking, MD simulation, no wet-lab kinetics |
+| **Toxicology / metabolism** | 🔍 Apply Gate 1 carefully | Studies CYP450/GST metabolism of mycotoxins in liver/animals |
+
+**For review papers:** Data in review tables are SECONDARY citations. Mark every record with `"source_type": "review"` so downstream deduplication can prioritize original sources.
+
+---
+
+## ========================================
+## GATE 1: BIOLOGICAL CONTEXT FILTER (CRITICAL — NEW)
+## ========================================
+
+**This is the most important new filter. It addresses the #1 source of noise in previous extractions.**
+
+### ❌ REJECT: Xenobiotic metabolism / bioactivation enzymes
+
+Many papers study how animals/humans METABOLIZE mycotoxins via liver enzymes. These are NOT degradation enzymes for applications. **REJECT the entire paper or specific records if:**
+
+**CYP450 / Phase I metabolism indicators:**
+- Enzyme names: CYP1A2, CYP3A4, CYP2A6, CYP1A1, CYP3A37, CYP2A13, any "CYP" prefix
+- "cytochrome P450", "microsomal", "hepatic", "liver microsomes"
+- "bioactivation", "epoxidation", "AFB1-8,9-epoxide", "AFBO"
+- "Phase I metabolism", "oxidative metabolism"
+- Products are MORE toxic: "mutagenic metabolite", "carcinogenic intermediate", "DNA adduct"
+
+**GST / Phase II metabolism indicators:**
+- "glutathione S-transferase", "GST", "glutathione conjugation"
+- "Phase II metabolism", "detoxification pathway" (in mammalian context)
+- "AFB1-GSH conjugate", "mercapturic acid"
+
+**Animal metabolism study indicators:**
+- "hepatocytes", "liver slices", "in vivo metabolism"
+- "pharmacokinetics", "bioavailability", "clearance rate"
+- "species differences in metabolism" (comparing rat/mouse/human CYPs)
+
+### ✅ ACCEPT: Applied degradation enzymes
+
+These are enzymes being studied for PRACTICAL mycotoxin removal in food/feed:
+- Microbial enzymes (from bacteria, fungi) that DEGRADE mycotoxins
+- Laccases, peroxidases, oxidases acting on mycotoxin structure
+- Hydrolases (esterases, amidases) cleaving mycotoxin bonds
+- Reductases converting mycotoxins to less toxic forms
+- Products are LESS toxic or NON-toxic
+
+### ⚠️ EDGE CASES:
+- "Aflatoxin oxidase" from fungi → ✅ ACCEPT (applied enzyme)
+- "CYP450 from *Aspergillus*" → ✅ ACCEPT IF the paper frames it as a degradation tool, not animal metabolism
+- "Laccase + AFB1 → less toxic products" → ✅ ACCEPT
+- "CYP1A2 converts AFB1 to AFBO (carcinogenic)" → ❌ REJECT (bioactivation)
+- "GST detoxifies AFB1-epoxide in chicken liver" → ❌ REJECT (animal metabolism pathway)
+
+**Decision rule:** If you are unsure, ask: "Would someone use this enzyme to REMOVE mycotoxins from food?" If yes → ACCEPT. If it's about how the body processes mycotoxins → REJECT.
+
+---
+
+## ========================================
+## GATE 2: MYCOTOXIN SUBSTRATE (STRICT)
+## ========================================
+
+**✅ ACCEPT ONLY mycotoxin substrates:**
+
+Aflatoxins: AFB1, AFB2, AFG1, AFG2, AFM1, AFM2
+Ochratoxins: OTA, OTB, OTC
+Trichothecenes: DON, NIV, T-2, HT-2, 3-ADON, 15-ADON, DAS
+Fumonisins: FB1, FB2, FB3
+Zearalenones: ZEN, α-ZEL, β-ZEL
+Others: Patulin, Citrinin, Sterigmatocystin, Cyclopiazonic acid, Alternariol, Beauvericin, Enniatins, Moniliformin, Ergot alkaloids
+
+**❌ REJECT non-mycotoxin substrates:**
+- ABTS, guaiacol, catechol, DMP, veratryl alcohol, syringaldazine
+- Dyes (RBBR, methylene blue)
+- Other phenolic compounds
+- AFB1-8,9-epoxide as a substrate for GST (this is Phase II metabolism, not degradation)
+
+**⚠️ IMPORTANT:** "Aflatoxin B1-8,9-epoxide" as a SUBSTRATE for GST = REJECT (Phase II metabolism).
+But "AFB1" as a substrate for laccase/oxidase = ACCEPT (degradation enzyme).
+
+---
+
+## ========================================
+## GATE 3: MINIMUM DATA REQUIREMENT (NEW — CRITICAL)
+## ========================================
+
+**A record MUST have at least ONE quantitative measurement. Do NOT create records that are just enzyme name + substrate with no data.**
+
+✅ Has Km, kcat, kcat/Km, or Vmax value → EXTRACT
+✅ Has degradation efficiency (%) with reaction time → EXTRACT
+✅ Has specific activity value → EXTRACT (note in notes field)
+
+❌ ONLY has enzyme name + substrate + organism, NO quantitative data → DO NOT CREATE RECORD
+❌ Only qualitative statement ("enzyme X can degrade toxin Y") → DO NOT CREATE RECORD
+❌ Only "detected by LC-MS" without quantification → DO NOT CREATE RECORD
+
+**This gate eliminates the 196 empty records (34.7%) that polluted previous extractions.**
+
+---
+
+## ========================================
+## GATE 4: ENZYME IDENTIFIABILITY
+## ========================================
+
+**The enzyme must be identifiable at the protein level.**
+
+✅ Named enzyme with organism (minimum): "laccase from Trametes versicolor"
+✅ Gene name available: "cotA from Bacillus subtilis"
+✅ Database IDs: UniProt, GenBank, PDB
+✅ Recombinant enzyme with cloning details
+✅ Purified enzyme with characterization
+
+⚠️ ACCEPT WITH LOW CONFIDENCE:
+- "Crude extract from Aspergillus niger" — only if a specific enzyme activity is measured
+- Mark as `enzyme_state: "crude"`, `confidence_score: 1-2`
+
+❌ REJECT:
+- "Microbial consortium", "mixed culture", "fermentation broth" (no specific enzyme)
+- "Unknown enzyme", "uncharacterized protein"
+- "Commercial enzyme preparation" without enzyme identity (e.g., "Novozymes product X")
+
+---
+
+## ========================================
+## EXTRACTION RULES
+## ========================================
+
+### Substrate Standardization (ALWAYS expand abbreviations!)
+
+| Text shows | Use this |
+|-----------|----------|
+| AFB1 | Aflatoxin B1 |
+| OTA | Ochratoxin A |
+| DON | Deoxynivalenol |
+| ZEN, ZEA | Zearalenone |
+| FB1 | Fumonisin B1 |
+| T-2 | T-2 toxin |
+| PAT | Patulin |
+| NIV | Nivalenol |
+| 3-ADON | 3-Acetyldeoxynivalenol |
+| α-ZOL | alpha-Zearalenol |
+| β-ZOL | beta-Zearalenol |
+| CIT | Citrinin |
+| STE | Sterigmatocystin |
+| AOH | Alternariol |
+
+### Organism Naming (ALWAYS use full binomial!)
+
+| ❌ Wrong | ✅ Correct |
+|---------|-----------|
+| B. subtilis | Bacillus subtilis |
+| E. coli | Escherichia coli |
+| T. versicolor | Trametes versicolor |
+| A. niger | Aspergillus niger |
+| P. ostreatus | Pleurotus ostreatus |
+
+- Look in title/abstract for the full name if text only uses abbreviation
+- Distinguish source organism from expression host:
+  "cotA from B. subtilis expressed in E. coli" → organism = "Bacillus subtilis", is_recombinant = true
+
+### enzyme_name vs mutations (CRITICAL)
+
+enzyme_name = the BASE protein name, never the mutation code.
+
+- "CotA mutant E186R" → enzyme_name="CotA", mutations="E186R"
+- "ZHD101-Y293F" → enzyme_name="ZHD101", mutations="Y293F"
+- Mutation pattern: single letter + number + single letter (E186R, N208S, Y293F)
+
+### Unit Standardization
+
+**Km → always convert to μM:**
+| Reported | Convert to |
+|---------|-----------|
+| 10.5 mM | 10500 μM |
+| 250 nM | 0.25 μM |
+| 0.15 M | 150000 μM |
+
+**kcat → always convert to s⁻¹:**
+| Reported | Convert to |
+|---------|-----------|
+| 120 min⁻¹ | 2.0 s⁻¹ |
+| 7200 h⁻¹ | 2.0 s⁻¹ |
+
+**kcat/Km → always convert to M⁻¹s⁻¹:**
+| Reported | Convert to |
+|---------|-----------|
+| 1.5 mM⁻¹s⁻¹ | 1500 M⁻¹s⁻¹ |
+
+**Vmax → keep original unit** (depends on enzyme concentration normalization)
+
+**CRITICAL: Vmax/E0 IS kcat, not Vmax!**
+- "Vmax/E0 = 27 min⁻¹" → kcat_value: 0.45, kcat_unit: "s⁻¹"
+- "specific activity = 45 U/mg" → Vmax_value: 45, Vmax_unit: "U/mg" (this is NOT kcat)
+
+### NEVER convert fold-changes to absolute values
+
+❌ "45-fold increase in kcat" → Do NOT fill kcat_value
+❌ "3× higher than WT" → Do NOT fill kcat_value
+✅ Leave value as null, note in notes: "kcat reported as 45-fold increase vs WT"
+
+### Multi-substrate / Multi-enzyme → Multiple records
+
+"Enzyme X: Km=0.9 μM (AFB1), Km=1.1 μM (OTA)" → Create 2 separate records
+
+### Products Extraction
+
+Look for degradation products in Results/Discussion sections:
+- Named products: "converted to HZEA and DHZEA"
+- LC-MS data: "product at m/z 365"
+- Toxicity assessment: "less toxic", "non-mutagenic", "non-estrogenic"
+
+Format:
+```json
+"products": [
+  {"name": "product name", "toxicity_change": "less toxic|non-toxic|null"}
+]
+```
+
+If only degradation % reported without product identification → "products": []
+
+### Temperature, pH, Optimal Conditions
+
+**ALWAYS extract these when mentioned, even if kinetics data is sparse:**
+- "at 37°C, pH 7.0" → temperature_value: 37, ph: 7.0
+- "optimal temperature 50°C" → optimal_temperature_value: 50
+- "stable up to 60°C for 1h" → thermal_stability: 60, thermal_stability_time: 1, thermal_stability_time_unit: "h"
+
+---
+
+## ========================================
+## OUTPUT SCHEMA
+## ========================================
+
+```json
+[{
+  "enzyme_name": "string (REQUIRED - base name, not mutation)",
+  "enzyme_full_name": "string|null",
+  "enzyme_type": "string|null (laccase/peroxidase/oxidase/reductase/hydrolase/esterase/amidase...)",
+  "ec_number": "string|null (EC X.X.X.X)",
+  "gene_name": "string|null",
+  "uniprot_id": "string|null",
+  "genbank_id": "string|null",
+  "pdb_id": "string|null",
+  "sequence": "string|null",
+
+  "organism": "string|null (FULL binomial name REQUIRED if available)",
+  "strain": "string|null",
+  "is_recombinant": "bool|null",
+  "is_wild_type": "bool|null",
+  "mutations": "string|null (e.g., E186R;N208S)",
+
+  "substrate": "string (REQUIRED - STANDARD full name)",
+  "substrate_smiles": "string|null",
+  "substrate_concentration": "string|null",
+
+  "Km_value": "number|null (MUST be in μM)",
+  "Km_unit": "μM",
+  "Vmax_value": "number|null (standalone Vmax only, NOT Vmax/E0)",
+  "Vmax_unit": "string|null (keep original)",
+  "kcat_value": "number|null (MUST be in s⁻¹)",
+  "kcat_unit": "s⁻¹",
+  "kcat_Km_value": "number|null (MUST be in M⁻¹s⁻¹)",
+  "kcat_Km_unit": "M⁻¹s⁻¹",
+
+  "degradation_efficiency": "number|null (percentage, 0-100)",
+  "reaction_time_value": "number|null",
+  "reaction_time_unit": "string|null (h/min/s)",
+
+  "products": [{"name": "string", "toxicity_change": "string|null"}],
+
+  "temperature_value": "number|null (experimental condition)",
+  "temperature_unit": "°C",
+  "ph": "number|null (experimental condition)",
+  "optimal_ph": "string|null (can be range like '5.0-6.0')",
+  "optimal_temperature_value": "number|null",
+  "optimal_temperature_unit": "°C",
+
+  "thermal_stability": "string|null (temperature where activity retained)",
+  "thermal_stability_unit": "°C",
+  "thermal_stability_time": "number|null",
+  "thermal_stability_time_unit": "string|null (h/min)",
+
+  "enzyme_state": "free|immobilized|crude|partially_purified|cell_free|commercial",
+  "source_type": "original|review|computational",
+  "notes": "string|null",
+  "confidence_score": "1-3 (see scoring below)"
+}]
+```
+
+---
+
+## ========================================
+## CONFIDENCE SCORING (1-3 scale)
+## ========================================
+
+| Score | Criteria | Expected accuracy |
+|-------|----------|-------------------|
+| **3** | Has kinetics (Km/kcat/kcat_Km) + organism + conditions + enzyme identifiable | ~95% |
+| **2** | Has degradation_efficiency OR partial kinetics, enzyme identifiable | ~84% |
+| **1** | Minimal quantitative data, enzyme barely identifiable | ~56% |
+
+**Bonus conditions (upgrade by 1, cap at 3):**
+- Has UniProt/GenBank/PDB ID
+- Has full amino acid sequence
+- Has EC number
+- Has multiple kinetic parameters (both Km and kcat)
+
+---
+
+## ========================================
+## EXAMPLES
+## ========================================
+
+### Example 1 — High quality record (Score 3)
+
+Input: "The recombinant aflatoxin oxidase (AFO, GenBank: AY941095) from Armillariella tabescens showed Km of 0.33 μM and kcat of 2.5 s⁻¹ for AFB1 at pH 6.0 and 37°C. AFB1 was converted to C17H14O7, which showed no mutagenic activity."
+
+Output:
+```json
+[{
+  "enzyme_name": "AFO",
+  "enzyme_full_name": "aflatoxin oxidase",
+  "enzyme_type": "oxidase",
+  "ec_number": null,
+  "gene_name": "AFO",
+  "uniprot_id": null,
+  "genbank_id": "AY941095",
+  "pdb_id": null,
+  "sequence": null,
+  "organism": "Armillariella tabescens",
+  "strain": null,
+  "is_recombinant": true,
+  "is_wild_type": true,
+  "mutations": null,
+  "substrate": "Aflatoxin B1",
+  "substrate_smiles": null,
+  "substrate_concentration": null,
+  "Km_value": 0.33,
+  "Km_unit": "μM",
+  "Vmax_value": null,
+  "Vmax_unit": null,
+  "kcat_value": 2.5,
+  "kcat_unit": "s⁻¹",
+  "kcat_Km_value": null,
+  "kcat_Km_unit": null,
+  "degradation_efficiency": null,
+  "reaction_time_value": null,
+  "reaction_time_unit": null,
+  "products": [{"name": "C17H14O7", "toxicity_change": "non-mutagenic"}],
+  "temperature_value": 37,
+  "temperature_unit": "°C",
+  "ph": 6.0,
+  "optimal_ph": null,
+  "optimal_temperature_value": null,
+  "optimal_temperature_unit": null,
+  "thermal_stability": null,
+  "thermal_stability_unit": null,
+  "thermal_stability_time": null,
+  "thermal_stability_time_unit": null,
+  "enzyme_state": "free",
+  "source_type": "original",
+  "notes": null,
+  "confidence_score": 3
+}]
+```
+
+### Example 2 — REJECT: CYP450 metabolism
+
+Input: "Human CYP1A2 and CYP3A4 catalyze the epoxidation of AFB1 to the highly mutagenic AFB1-8,9-epoxide (AFBO) with Km values of 25 μM and 48 μM, respectively."
+
+Output: `[]` (empty array — these are bioactivation enzymes, not degradation enzymes)
+
+### Example 3 — REJECT: No quantitative data
+
+Input: "Laccase from Trametes versicolor was found to degrade aflatoxin B1 in contaminated corn samples."
+
+Output: `[]` (empty array — no Km, kcat, degradation efficiency, or any quantitative measurement)
+
+### Example 4 — Degradation efficiency only (Score 2)
+
+Input: "The recombinant MnP from Phanerochaete chrysosporium degraded 76.3% of ZEN within 24h at pH 4.5, 30°C."
+
+Output:
+```json
+[{
+  "enzyme_name": "MnP",
+  "enzyme_full_name": "manganese peroxidase",
+  "enzyme_type": "peroxidase",
+  "organism": "Phanerochaete chrysosporium",
+  "substrate": "Zearalenone",
+  "Km_value": null, "Km_unit": null,
+  "kcat_value": null, "kcat_unit": null,
+  "degradation_efficiency": 76.3,
+  "reaction_time_value": 24, "reaction_time_unit": "h",
+  "temperature_value": 30, "temperature_unit": "°C",
+  "ph": 4.5,
+  "enzyme_state": "free",
+  "source_type": "original",
+  "confidence_score": 2,
+  "...": "(other fields null)"
+}]
+```
+
+---
+
+## Extract from the following text:
+
+{TEXT_CONTENT}
+
+**Return ONLY the JSON array. No markdown code blocks. No explanations.**

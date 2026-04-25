@@ -1,0 +1,474 @@
+# Mycotoxin Enzyme Kinetics Extraction v7.0 (Expanded - Immobilized/Crude Enzymes Accepted)
+
+## 🚨 CRITICAL INSTRUCTIONS: DATA QUALITY FILTERS
+
+**目标：构建霉菌毒素降解酶数据库 - 接受固定化酶和粗酶数据**
+
+---
+
+### 🧪 FILTER 1: MYCOTOXIN SUBSTRATE (MUST PASS - 必须满足)
+
+**✅ 只接受霉菌毒素底物：**
+
+**黄曲霉毒素类:** AFB1, AFB2, AFG1, AFG2, AFM1, AFM2, AFP1
+**赭曲霉毒素类:** OTA, OTB, OTC
+**单端孢霉烯族:** DON, NIV, T-2, HT-2, 3-ADON, 15-ADON, DAS
+**伏马毒素类:** FB1, FB2, FB3, HFB1
+**玉米赤霉烯酮类:** ZEN, α-ZEL, β-ZEL
+**其他:** Patulin, Citrinin, Sterigmatocystin, CPA, ROQ-C, MPA, AOH, AME, TeA, Moniliformin, Beauvericin, Enniatins, Ergot alkaloids
+
+**❌ 拒绝非霉菌毒素底物：**
+- 通用酶底物: ABTS, guaiacol, catechol, DMP, veratryl alcohol
+- 一般酚类化合物
+- 合成显色底物
+- 染料 (RBBR, RB5, methylene blue)
+- 其他非霉菌毒素小分子
+
+**示例:**
+- ✅ "Laccase degrades AFB1 with Km = 0.5 µM" → **接受** (霉菌毒素)
+- ✅ "Peroxidase acts on Ochratoxin A" → **接受** (霉菌毒素)
+- ❌ "Laccase oxidizes ABTS with Km = 2 mM" → **拒绝** (通用底物)
+- ❌ "Enzyme degrades methylene blue" → **拒绝** (非霉菌毒素)
+
+---
+
+### 🛡️ FILTER 2: DEGRADATION FOCUS (MUST PASS - 必须满足)
+
+**✅ 只接受降解/解毒相关反应：**
+
+**接受条件：**
+- 产物毒性降低或无毒: "less toxic", "non-toxic", "reduced toxicity"
+- 降解反应: "degraded", "hydrolyzed", "oxidized", "transformed"
+- 结构破坏: "breaks down", "detoxified", "decreased cytotoxicity"
+- 未提及毒性增加（默认为降解研究）
+
+**❌ 拒绝生物活化反应：**
+- 毒性增加: "activated", "more toxic", "increased toxicity"
+- P450类活化: AFB1 → AFBO (环氧化物，高致突变性)
+- 增强细胞毒性: "enhanced cytotoxicity", "potentiated toxicity"
+- 致癌代谢物: "carcinogenic metabolite"
+
+**默认假设**: 如果检测到产物但未提及毒性变化，假定为降解反应（这是霉菌毒素降解研究）。
+
+---
+
+### ✅ ENZYME STATE ACCEPTANCE (扩展 - 接受多种酶状态)
+
+**目标：提取所有霉菌毒素降解酶的动力学数据，不受酶状态限制**
+
+**接受的酶状态：**
+
+| 酶状态 | 关键词 | 标记 |
+|--------|--------|------|
+| 游离酶 | free enzyme, soluble enzyme, purified enzyme, native enzyme | `enzyme_state: "free"` |
+| 固定化酶 | immobilized, supported, bound, cross-linked, conjugated, adsorbed, entrapped | `enzyme_state: "immobilized"` |
+| 粗酶 | crude extract, crude enzyme, lysate, supernatant | `enzyme_state: "crude"` |
+| 部分纯化 | partially purified, semi-purified | `enzyme_state: "partially_purified"` |
+| 无细胞提取物 | cell-free extract, culture supernatant | `enzyme_state: "cell_free"` |
+| 商业制剂 | commercial, preparation, kit | `enzyme_state: "commercial"` |
+
+**✅ 全部接受 - 用质量标记字段区分**
+
+**示例:**
+- ✅ "Free laccase degrades AFB1 with Km = 0.5 µM" → **接受** (enzyme_state: "free")
+- ✅ "Immobilized laccase on chitosan Km = 15.2 µM" → **接受** (enzyme_state: "immobilized", notes: "Carrier: chitosan")
+- ✅ "Crude extract from A. niger degraded OTA" → **接受** (enzyme_state: "crude")
+- ✅ "Partially purified peroxidase from fungal culture" → **接受** (enzyme_state: "partially_purified")
+
+**⚠️ 仍然拒绝的情况：**
+- ❌ "Enzyme cocktail" / "Mixed enzymes"（无法确定具体酶）
+- ❌ "Unknown enzyme from [organism]"（无酶名称）
+
+---
+
+## 📋 序列可用性标记（非过滤条件）
+
+**不再要求序列信息，但需要标记序列可用性：**
+
+| 序列可用性 | 条件 | 标记 |
+|-----------|------|------|
+| full_sequence | 提供完整氨基酸序列 | `sequence_availability: "full_sequence"` |
+| database_id | 有UniProt/GenBank/PDB ID | `sequence_availability: "database_id"` |
+| gene_name_only | 只有基因名（可用于后续查找） | `sequence_availability: "gene_name_only"` |
+| none | 无序列信息 | `sequence_availability: "none"` |
+
+**示例:**
+- "Recombinant CotA (GenBank: ABC123)" → `sequence_availability: "database_id"`
+- "Laccase from *B. subtilis*" → `sequence_availability: "gene_name_only"`
+- "Crude enzyme extract" → `sequence_availability: "none"`
+
+---
+
+## Task
+
+从霉菌毒素降解研究文本中提取酶动力学数据。
+
+## Extraction Triggers (满足任一即可提取)
+- 有 Km 或 kcat 或 kcat/Km 值
+- 有酶 + 霉菌毒素底物 + 降解效率/产物
+- 有酶 + 霉菌毒素底物 + EC号/UniProt ID
+
+## Products Extraction Rules
+
+**重要：始终提取降解/转化产物！**
+
+产物是酶降解/转化底物后形成的化学化合物。查找：
+
+### 🔍 从哪里找产物：
+1. **明确的产物名称**: "降解产物被鉴定为...", "AFB1转化为...", "transformed into..."
+2. **LC-MS/HPLC分析**: "LC-MS检测到m/z 365的峰", "MS分析显示...", "HPLC显示新峰..."
+3. **化学结构描述**: "羟基化衍生物", "去甲基形式", "水解产物"
+4. **产物缩写**: "HFB1" (hydrolyzed fumonisin B1), "OTα" (ochratoxin alpha), "3-keto-DON"
+5. **降解途径图**: 检查图注中的产物名称
+
+### 📝 产物格式:
+```json
+"products": [
+  {
+    "name": "产物化学名称或分子式",
+    "toxicity_change": "less toxic/non-toxic/non-mutagenic/reduced toxicity/null"
+  }
+]
+```
+
+### ✅ 示例:
+
+**示例1 - 命名产物:**
+文本: "AFB1被转化为两个产物：水解AFB1 (HFB1)和三羧酸衍生物，均显示毒性降低。"
+```json
+"products": [
+  {"name": "HFB1", "toxicity_change": "reduced toxicity"},
+  {"name": "tricarboxylic acid derivative", "toxicity_change": "reduced toxicity"}
+]
+```
+
+**示例2 - MS检测产物:**
+文本: "LC-MS分析显示一个m/z 365 [M+Na]+的产物，细胞毒性较低。"
+```json
+"products": [
+  {"name": "m/z 365 [M+Na]+", "toxicity_change": "less toxic"}
+]
+```
+
+**示例3 - 多个产物:**
+文本: "玉米赤霉烯酮被水解为HZEA和DHZEA，无雌激素活性。"
+```json
+"products": [
+  {"name": "HZEA", "toxicity_change": "non-toxic"},
+  {"name": "DHZEA", "toxicity_change": "non-toxic"}
+]
+```
+
+**示例4 - 无毒性信息:**
+文本: "酶产生3-keto-DON作为主要产物。"
+```json
+"products": [
+  {"name": "3-keto-DON", "toxicity_change": null}
+]
+```
+
+**示例5 - 化学分子式:**
+文本: "产物被鉴定为C12H11O3。"
+```json
+"products": [
+  {"name": "C12H11O3", "toxicity_change": null}
+]
+```
+
+---
+
+## OUTPUT SCHEMA (JSON array)
+
+```json
+[{
+  "enzyme_name": "string (REQUIRED)",
+  "enzyme_full_name": "string|null - 完整描述性名称",
+  "enzyme_type": "string|null (laccase, peroxidase, oxidase, reductase, hydrolase...)",
+  "ec_number": "string|null",
+  "gene_name": "string|null - 对UniProt查找很重要！",
+  "uniprot_id": "string|null",
+  "genbank_id": "string|null",
+  "pdb_id": "string|null",
+  "sequence": "string|null",
+  "organism": "string|null - 必须是完整的双名法 (如 Bacillus subtilis 而非 B. subtilis)",
+  "strain": "string|null",
+  "is_recombinant": "bool|null",
+  "is_wild_type": "bool|null",
+  "mutations": "string|null",
+
+  "substrate": "string (REQUIRED) - 使用标准名称 (如 Aflatoxin B1 而非 AFB1)",
+  "substrate_smiles": "string|null",
+  "substrate_concentration": "string|null",
+
+  "Km_value": "number|null",
+  "Km_unit": "string|null - 始终使用 μM (自动转换单位)",
+  "kcat_value": "number|null",
+  "kcat_unit": "string|null - 始终使用 s⁻¹ (自动转换单位)",
+  "kcat_Km_value": "number|null",
+  "kcat_Km_unit": "string|null - 始终使用 M⁻¹s⁻¹ (自动转换单位)",
+
+  "degradation_efficiency": "percentage|null",
+  "reaction_time_value": "number|null",
+  "reaction_time_unit": "h|min|null",
+
+  "products": [{"name": "string", "toxicity_change": "string|null"}],
+
+  "temperature_value": "number|null",
+  "temperature_unit": "°C|null",
+  "ph": "number|null",
+  "optimal_ph": "string|null",
+  "optimal_temperature_value": "number|null",
+  "optimal_temperature_unit": "°C|null",
+
+  "thermal_stability": "number|null",
+  "thermal_stability_unit": "°C|null",
+  "thermal_stability_time": "number|null",
+  "thermal_stability_time_unit": "h|min|null",
+
+  "notes": "string|null",
+  "confidence_score": "1-5",
+
+  "=== 质量标记字段（自动填充） ===",
+  "enzyme_state": "free|immobilized|crude|partially_purified|cell_free|commercial",
+  "sequence_availability": "full_sequence|database_id|gene_name_only|none"
+}]
+```
+
+---
+
+## ⚠️ CRITICAL NAMING RULES (用于下游数据库查找)
+
+### 1. organism - 必须使用完整的双名法！
+
+**为什么**: UniProt需要完整的物种名来准确检索序列。
+
+| ❌ 错误 | ✅ 正确 |
+|--------|--------|
+| B. subtilis | Bacillus subtilis |
+| B. licheniformis | Bacillus licheniformis |
+| B. pumilus | Bacillus pumilus |
+| E. coli | Escherichia coli |
+| S. cerevisiae | Saccharomyces cerevisiae |
+| A. tabescens | Armillariella tabescens |
+| T. versicolor | Trametes versicolor |
+| P. ostreatus | Pleurotus ostreatus |
+| Bacillus sp. | Bacillus (只在未知物种时使用属名) |
+
+**规则**:
+- 始终展开单字母缩写的属名
+- 在表格标题/脚注中查找完整物种名
+- 如果是对照表，检查论文标题/摘要中的物种信息
+
+### 2. gene_name - 有就提取！
+
+**为什么**: 基因名可以实现准确的UniProt序列查找。
+
+- 查找基因列或脚注引用
+- 基因名通常是小写 (cotA, lacA, mnp1)
+
+### 3. substrate - 使用标准化学名称以便PubChem SMILES查找！
+
+**原则**: 使用PubChem识别的完整化学名称。避免缩写。
+
+#### 霉菌毒素 (始终展开！)
+| 文本显示 | 使用标准名称 |
+|---------|-------------|
+| AFB1, AFB₁ | Aflatoxin B1 |
+| AFB2 | Aflatoxin B2 |
+| AFG1, AFG2 | Aflatoxin G1, Aflatoxin G2 |
+| AFM1 | Aflatoxin M1 |
+| OTA | Ochratoxin A |
+| OTB | Ochratoxin B |
+| DON | Deoxynivalenol |
+| 3-ADON | 3-Acetyldeoxynivalenol |
+| 15-ADON | 15-Acetyldeoxynivalenol |
+| NIV | Nivalenol |
+| ZEN, ZEA | Zearalenone |
+| α-ZOL | alpha-Zearalenol |
+| β-ZOL | beta-Zearalenol |
+| FB1, FB₁ | Fumonisin B1 |
+| FB2 | Fumonisin B2 |
+| HFB1 | Hydrolyzed fumonisin B1 |
+| T-2 | T-2 toxin |
+| HT-2 | HT-2 toxin |
+| DAS | Diacetoxyscirpenol |
+| PAT | Patulin |
+| CIT | Citrinin |
+| STE, ST | Sterigmatocystin |
+| CPA | Cyclopiazonic acid |
+| AOH | Alternariol |
+| AME | Alternariol monomethyl ether |
+| MON | Moniliformin |
+| BEA | Beauvericin |
+
+#### 规则:
+1. 检查文本/脚注中的完整化学名称
+2. 如果只有缩写，使用上面的映射展开
+3. 对于新化合物，使用论文中的确切名称
+
+---
+
+## ⚠️ CRITICAL: UNIT STANDARDIZATION RULES
+
+### Km - 始终使用 μM
+
+| 论文报告 | 提取为 |
+|---------|--------|
+| 10.5 mM | 10500 μM |
+| 0.15 M | 150000 μM |
+| 250 nM | 0.25 μM |
+| 10.5 μM | 10.5 μM |
+
+### kcat - 始终使用 s⁻¹
+
+| 论文报告 | 提取为 |
+|---------|--------|
+| 120 min⁻¹ | 2 s⁻¹ |
+| 7200 h⁻¹ | 2 s⁻¹ |
+| 35 s⁻¹ | 35 s⁻¹ |
+
+### kcat/Km - 始终使用 M⁻¹s⁻¹
+
+| 论文报告 | 提取为 |
+|---------|--------|
+| 1.5 mM⁻¹s⁻¹ | 1500 M⁻¹s⁻¹ |
+| 2.5×10⁶ M⁻¹s⁻¹ | 2500000 M⁻¹s⁻¹ |
+
+---
+
+## 🎯 特殊提取规则
+
+### 1. 固定化酶数据提取
+
+**识别关键词**：
+- immobilized, immobilised, supported, bound, conjugated
+- nanoparticle, nanocomplex, nanofiber, graphene, silica, polymer
+- bead, resin, matrix, carrier
+
+**提取方式**：
+- ✅ 提取所有动力学数据（Km, kcat, kcat/Km）
+- ✅ 标记`enzyme_state: "immobilized"`
+- ✅ 在`notes`中记录载体信息
+
+**示例**：
+```
+文本: "Immobilized laccase on chitosan beads showed Km = 15.2 μM for AFB1"
+
+提取:
+{
+  "enzyme_name": "laccase",
+  "substrate": "Aflatoxin B1",
+  "Km_value": 15.2,
+  "Km_unit": "μM",
+  "enzyme_state": "immobilized",
+  "notes": "Immobilized on chitosan beads"
+}
+```
+
+### 2. 粗酶/细胞提取物数据提取
+
+**识别关键词**：
+- crude extract, crude enzyme, cell lysate, culture supernatant
+- fermentation broth, fungal extract, bacterial culture
+
+**提取方式**：
+- ✅ 提取所有动力学数据
+- ✅ 标记`enzyme_state: "crude"` 或 `"cell_free"`
+- ✅ 在`notes`中记录状态
+
+**示例**：
+```
+文本: "Crude extract from A. niger showed AFB1 degradation with Km = 25 μM"
+
+提取:
+{
+  "enzyme_name": "crude enzyme",
+  "organism": "Aspergillus niger",
+  "substrate": "Aflatoxin B1",
+  "Km_value": 25,
+  "Km_unit": "μM",
+  "enzyme_state": "crude",
+  "sequence_availability": "none",
+  "notes": "Crude extract from A. niger"
+}
+```
+
+### 3. 比较表格处理
+
+**固定化酶 vs 游离酶比较**：
+- ✅ 提取所有行的数据
+- ✅ 用`enzyme_state`字段区分
+
+**示例表格**：
+
+| Enzyme | Km (μM) | kcat (s⁻¹) |
+|--------|---------|------------|
+| Free laccase | 2.3 | 25.1 |
+| Laccase-chitosan | 15.2 | 12.5 |
+| Laccase-silica | 18.7 | 10.2 |
+
+**提取结果**：
+```json
+[
+  {
+    "enzyme_name": "laccase",
+    "substrate": "Aflatoxin B1",
+    "Km_value": 2.3,
+    "kcat_value": 25.1,
+    "enzyme_state": "free"
+  },
+  {
+    "enzyme_name": "laccase",
+    "substrate": "Aflatoxin B1",
+    "Km_value": 15.2,
+    "kcat_value": 12.5,
+    "enzyme_state": "immobilized",
+    "notes": "Carrier: chitosan"
+  },
+  {
+    "enzyme_name": "laccase",
+    "substrate": "Aflatoxin B1",
+    "Km_value": 18.7,
+    "kcat_value": 10.2,
+    "enzyme_state": "immobilized",
+    "notes": "Carrier: silica"
+  }
+]
+```
+
+---
+
+## 🚫 不提取的情况
+
+**跳过以下情况**：
+
+❌ 只有酶名称和来源生物，无任何动力学参数
+❌ 只有定性描述（"酶能够降解毒素"）而无定量数据
+❌ 只有产物检测（"HPLC检测到产物"）而无动力学参数
+❌ 底物不是霉菌毒素
+❌ 反应是生物活化（毒性增加）
+❌ 酶混合物（无法确定具体酶）
+
+---
+
+## ✅ 提取原则总结
+
+1. **核心要求**：底物必须是霉菌毒素，反应必须是降解相关
+2. **酶状态扩展**：接受游离酶、固定化酶、粗酶等多种状态
+3. **质量标记**：用enzyme_state和sequence_availability字段区分数据质量
+4. **单位统一**：自动转换为标准单位（μM, s⁻¹, M⁻¹s⁻¹）
+5. **上下文保留**：在notes中记录所有相关信息
+
+---
+
+## CONFIDENCE SCORING (1-5)
+
+- **5**: 有 Km/kcat/kcat_Km + 生物来源 + 条件 + 精确值
+- **4**: 有动力学参数 OR 完整酶信息, >60%字段
+- **3**: 有酶 + 底物, 部分数据
+- **2**: 最少数据, 不确定的缩写
+- **1**: 非常不完整, 严重的OCR问题
+
+---
+
+**现在从提供的文本中提取数据：**

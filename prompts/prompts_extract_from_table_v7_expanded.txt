@@ -1,0 +1,509 @@
+# Mycotoxin Enzyme Kinetics Extraction from Tables v7.0 (Expanded - Immobilized/Crude Enzymes Accepted)
+
+## 🚨 CRITICAL INSTRUCTIONS: DATA QUALITY FILTERS
+
+**目标：构建霉菌毒素降解酶数据库 - 接受固定化酶和粗酶数据**
+
+---
+
+### 🧪 FILTER 1: MYCOTOXIN SUBSTRATE (MUST PASS - 必须满足)
+
+**✅ 只接受霉菌毒素底物：**
+
+**黄曲霉毒素类:** AFB1, AFB2, AFG1, AFG2, AFM1, AFM2, AFP1
+**赭曲霉毒素类:** OTA, OTB, OTC
+**单端孢霉烯族:** DON, NIV, T-2, HT-2, 3-ADON, 15-ADON, DAS
+**伏马毒素类:** FB1, FB2, FB3, HFB1
+**玉米赤霉烯酮类:** ZEN, α-ZEL, β-ZEL
+**其他:** Patulin, Citrinin, Sterigmatocystin, CPA, ROQ-C, MPA, AOH, AME, TeA, Moniliformin, Beauvericin, Enniatins, Ergot alkaloids
+
+**❌ 拒绝非霉菌毒素底物：**
+- 通用酶底物: ABTS, guaiacol, catechol, DMP, veratryl alcohol
+- 一般酚类化合物
+- 合成显色底物
+- 染料 (RBBR, RB5, methylene blue)
+- 其他非霉菌毒素小分子
+
+**示例表格**：
+
+| Enzyme | Substrate | Km (µM) | Action |
+|--------|-----------|---------|--------|
+| Laccase | AFB1 | 0.5 | ✅ 提取 (霉菌毒素) |
+| Peroxidase | OTA | 1.2 | ✅ 提取 (霉菌毒素) |
+| Laccase | ABTS | 100 | ❌ 跳过 (通用底物) |
+| Oxidase | Guaiacol | 50 | ❌ 跳过 (非霉菌毒素) |
+
+---
+
+### 🛡️ FILTER 2: DEGRADATION FOCUS (MUST PASS - 必须满足)
+
+**✅ 只接受降解/解毒相关反应：**
+
+**接受条件：**
+- 产物毒性降低或无毒: "less toxic", "non-toxic", "reduced toxicity"
+- 降解反应: "degraded", "hydrolyzed", "oxidized", "transformed"
+- 结构破坏: "breaks down", "detoxified", "decreased cytotoxicity"
+- 未提及毒性增加（默认为降解研究）
+
+**❌ 拒绝生物活化反应：**
+- 毒性增加: "activated", "more toxic", "increased toxicity"
+- P450类活化: AFB1 → AFBO (环氧化物，高致突变性)
+- 增强细胞毒性: "enhanced cytotoxicity", "potentiated toxicity"
+
+**默认假设**: 如果产物被检测到但毒性未提及，假定为降解反应（这是霉菌毒素降解研究）。
+
+---
+
+### ✅ ENZYME STATE ACCEPTANCE (扩展 - 接受多种酶状态)
+
+**目标：提取所有霉菌毒素降解酶的动力学数据，不受酶状态限制**
+
+**接受的酶状态：**
+
+| 酶状态 | 关键词 | 标记 |
+|--------|--------|------|
+| 游离酶 | free enzyme, soluble enzyme, purified enzyme, native enzyme | `enzyme_state: "free"` |
+| 固定化酶 | immobilized, supported, bound, cross-linked, conjugated, adsorbed, entrapped | `enzyme_state: "immobilized"` |
+| 粗酶 | crude extract, crude enzyme, lysate, supernatant | `enzyme_state: "crude"` |
+| 部分纯化 | partially purified, semi-purified | `enzyme_state: "partially_purified"` |
+| 无细胞提取物 | cell-free extract, culture supernatant | `enzyme_state: "cell_free"` |
+| 商业制剂 | commercial, preparation, kit | `enzyme_state: "commercial"` |
+
+**✅ 全部接受 - 用质量标记字段区分**
+
+**示例表格**：
+
+| Enzyme | Km (µM) | Action |
+|--------|---------|--------|
+| Free laccase | 2.3 | ✅ 提取 (enzyme_state: "free") |
+| Immobilized laccase | 15.2 | ✅ 提取 (enzyme_state: "immobilized") |
+| Crude extract | 25.0 | ✅ 提取 (enzyme_state: "crude") |
+
+**⚠️ 仍然拒绝的情况：**
+- ❌ "Enzyme cocktail" / "Mixed enzymes"（无法确定具体酶）
+- ❌ "Unknown enzyme"（无酶名称）
+
+---
+
+## 📋 序列可用性标记（非过滤条件）
+
+**不再要求序列信息，但需要标记序列可用性：**
+
+| 序列可用性 | 条件 | 标记 |
+|-----------|------|------|
+| full_sequence | 提供完整氨基酸序列 | `sequence_availability: "full_sequence"` |
+| database_id | 有UniProt/GenBank/PDB ID | `sequence_availability: "database_id"` |
+| gene_name_only | 只有基因名（可用于后续查找） | `sequence_availability: "gene_name_only"` |
+| none | 无序列信息 | `sequence_availability: "none"` |
+
+---
+
+## 🚨 CRITICAL: PARAMETER EXTRACTION RULES
+
+### Rule 1: STANDARD PARAMETER RECOGNITION
+Extract into standard fields based on biochemical meaning, not just literal text matching:
+
+| Standard Field | Accept these names and equivalents |
+|----------------|------------------------------------|
+| Km_value | Km, KM, K_m, Michaelis constant |
+| kcat_value | kcat, k_cat, turnover number, **Vmax/E0**, **Vmax/[E0]**, **V_max/E_0** |
+| kcat_Km_value | kcat/Km, k_cat/K_m, catalytic efficiency, Vmax/(E0×Km), Vmax/(E0·Km) |
+
+**🔬 BIOCHEMICAL CONTEXT AWARENESS:**
+- **Vmax/E0 = kcat**: According to Michaelis-Menten kinetics, kcat (turnover number) equals Vmax divided by enzyme concentration.
+  - When you see "Vmax/E0", "Vmax/[E0]", or "V_max/E_0" → Extract as **kcat_value**
+  - This is the enzyme's intrinsic catalytic rate per active site
+- **kcat/Km = catalytic efficiency**: Can also be expressed as Vmax/(E0×Km)
+  - Extract as **kcat_Km_value**
+
+### Rule 2: REJECT TRULY NON-STANDARD HEADERS
+DO NOT extract into standard fields if the header contains:
+
+**Non-standard divisions:**
+- Per protein mass: `/mg protein`, `/μmol enzyme`
+  - Examples: ❌ "Km per mg protein", "activity/mg"
+- Per other parameters: `/Ki`, `/[S]`
+  - Examples: ❌ "kcat/Ki", "Vmax/[S]"
+- Multiplication with substrates:
+  - Examples: ❌ "kcat·[S]", "Km×[I]"
+- Complex nested ratios (not standard biochemical parameters):
+  - Examples: ❌ "(kcat/Km)/Ki", "Vmax²/Km"
+
+**Modifiers/qualifiers:**
+- Subscripts: `,app`, `,obs`, `,apparent`, `,relative`
+  - Examples: ❌ "Km,app", "kcat,obs", "Vmax,relative"
+- Conditions: `at pH X`, `(temperature)`, `in buffer`
+  - Examples: ❌ "Km at pH 7", "kcat (37°C)"
+
+**Normalization (non-intrinsic parameters):**
+- Per protein mass: `/mg`, `/μmol`, `/mg protein`
+- Per volume: `/mL`, `/L`
+
+### Rule 3: HANDLE NON-STANDARD DATA
+When you encounter a truly non-standard column (after applying biochemical recognition):
+1. Leave the corresponding standard field as `null`
+2. Record the original data in `notes`:
+   ```
+   "notes": "Table shows [column_name] = [value] [unit]. Not standard [parameter_name]."
+   ```
+3. If multiple non-standard columns exist, concatenate in notes
+
+**Example of NON-STANDARD (truly cannot map):**
+- Table column: "Activity per mg protein (U/mg)" with value "45.2"
+- Extract as:
+  - `kcat_value: null`
+  - `notes: "Table shows Activity per mg protein = 45.2 U/mg. Requires enzyme concentration for kcat calculation."`
+
+**Example of STANDARD (biochemically mappable):**
+- Table column: "Vmax/E0 (min⁻¹)" with value "27.1"
+- Extract as:
+  - `kcat_value: 27.1`
+  - `kcat_unit: "min⁻¹"`
+  - ✅ This IS standard kcat (turnover number)
+
+### Rule 4: CONSERVATIVE PRINCIPLE
+**"When in doubt, leave it out."**
+- Uncertain if header matches? → Leave as `null`, document in `notes`
+- Better to miss data than create false mappings
+- Human reviewers can interpret `notes` and add correct values later
+
+---
+
+## ⚠️ CRITICAL NAMING RULES (for downstream database lookup)
+
+### 1. organism - MUST use FULL binomial name!
+**Why**: UniProt requires full species names for accurate sequence retrieval.
+
+| ❌ WRONG | ✅ CORRECT |
+|----------|-----------|
+| B. subtilis | Bacillus subtilis |
+| B. licheniformis | Bacillus licheniformis |
+| B. pumilus | Bacillus pumilus |
+| E. coli | Escherichia coli |
+| S. cerevisiae | Saccharomyces cerevisiae |
+| A. tabescens | Armillariella tabescens |
+| T. versicolor | Trametes versicolor |
+| P. ostreatus | Pleurotus ostreatus |
+| Bacillus sp. | Bacillus (genus only if species unknown) |
+
+**Rules**:
+- ALWAYS expand single-letter genus abbreviations
+- Look in table caption/footnotes for full species names
+- If reviewing a comparative table, check the paper title/abstract for species info
+
+### 2. gene_name - Extract when visible!
+**Why**: Gene name enables accurate UniProt sequence lookup.
+
+- Look for gene columns or footnote references
+- Gene names are often lowercase (cotA, lacA, mnp1)
+
+### 3. substrate - Use STANDARD chemical names for PubChem SMILES lookup!
+
+**PRINCIPLE**: Use FULL chemical names recognized by PubChem. Avoid abbreviations.
+
+#### Mycotoxins (ALWAYS expand!)
+| Table shows | Use this standard name |
+|-------------|------------------------|
+| AFB1, AFB₁ | Aflatoxin B1 |
+| AFB2 | Aflatoxin B2 |
+| AFG1, AFG2 | Aflatoxin G1, Aflatoxin G2 |
+| AFM1 | Aflatoxin M1 |
+| OTA | Ochratoxin A |
+| OTB | Ochratoxin B |
+| DON | Deoxynivalenol |
+| 3-ADON | 3-Acetyldeoxynivalenol |
+| 15-ADON | 15-Acetyldeoxynivalenol |
+| NIV | Nivalenol |
+| ZEN, ZEA | Zearalenone |
+| α-ZOL | alpha-Zearalenol |
+| β-ZOL | beta-Zearalenol |
+| FB1, FB₁ | Fumonisin B1 |
+| FB2 | Fumonisin B2 |
+| HFB1 | Hydrolyzed fumonisin B1 |
+| T-2 | T-2 toxin |
+| HT-2 | HT-2 toxin |
+| DAS | Diacetoxyscirpenol |
+| PAT | Patulin |
+| CIT | Citrinin |
+| STE, ST | Sterigmatocystin |
+| CPA | Cyclopiazonic acid |
+| AOH | Alternariol |
+| AME | Alternariol monomethyl ether |
+| MON | Moniliformin |
+| BEA | Beauvericin |
+
+#### Rules:
+1. Check table caption/footnotes for full chemical names
+2. If only abbreviation in table, expand using the mapping above
+3. For novel compounds, use the exact name from paper
+
+---
+
+## 📝 输出格式（包含质量标记字段）
+
+```json
+[{
+  "enzyme_name": "string (REQUIRED)",
+  "enzyme_full_name": "string|null",
+  "enzyme_type": "string|null (laccase, peroxidase, oxidase, reductase, hydrolase, etc.)",
+  "ec_number": "string|null",
+  "gene_name": "string|null",
+  "uniprot_id": "string|null",
+  "genbank_id": "string|null",
+  "pdb_id": "string|null",
+  "sequence": "string|null",
+  "organism": "string|null",
+  "strain": "string|null",
+  "is_recombinant": "boolean|null",
+  "is_wild_type": "boolean|null",
+  "mutations": "string|null",
+
+  "substrate": "string (REQUIRED)",
+  "substrate_smiles": "string|null",
+  "substrate_concentration": "string|null",
+
+  "Km_value": "number|null",
+  "Km_unit": "string|null - 始终使用 μM (自动转换单位)",
+  "kcat_value": "number|null",
+  "kcat_unit": "string|null - 始终使用 s⁻¹ (自动转换单位)",
+  "kcat_Km_value": "number|null",
+  "kcat_Km_unit": "string|null - 始终使用 M⁻¹s⁻¹ (自动转换单位)",
+
+  "degradation_efficiency": "percentage|null",
+  "reaction_time_value": "number|null",
+  "reaction_time_unit": "h|min|null",
+
+  "products": [{"name": "string", "toxicity_change": "string|null"}],
+
+  "temperature_value": "number|null",
+  "temperature_unit": "°C|null",
+  "ph": "number|null",
+  "optimal_ph": "string|null",
+  "optimal_temperature_value": "number|null",
+  "optimal_temperature_unit": "°C|null",
+
+  "thermal_stability": "number|null",
+  "thermal_stability_unit": "°C|null",
+  "thermal_stability_time": "number|null",
+  "thermal_stability_time_unit": "h|min|null",
+
+  "notes": "string|null",
+  "confidence_score": "1-5",
+
+  "=== 质量标记字段（自动填充） ===",
+  "enzyme_state": "free|immobilized|crude|partially_purified|cell_free|commercial",
+  "sequence_availability": "full_sequence|database_id|gene_name_only|none"
+}]
+```
+
+---
+
+## ⚠️ CRITICAL: UNIT STANDARDIZATION RULES
+
+### Km - 始终使用 μM
+
+| 论文报告 | 提取为 |
+|---------|--------|
+| 10.5 mM | 10500 μM |
+| 0.15 M | 150000 μM |
+| 250 nM | 0.25 μM |
+| 10.5 μM | 10.5 μM |
+
+### kcat - 始终使用 s⁻¹
+
+| 论文报告 | 提取为 |
+|---------|--------|
+| 120 min⁻¹ | 2 s⁻¹ |
+| 7200 h⁻¹ | 2 s⁻¹ |
+| 35 s⁻¹ | 35 s⁻¹ |
+
+### kcat/Km - 始终使用 M⁻¹s⁻¹
+
+| 论文报告 | 提取为 |
+|---------|--------|
+| 1.5 mM⁻¹s⁻¹ | 1500 M⁻¹s⁻¹ |
+| 2.5×10⁶ M⁻¹s⁻¹ | 2500000 M⁻¹s⁻¹ |
+
+---
+
+## 🎯 特殊提取规则
+
+### 1. 固定化酶数据提取
+
+**识别关键词**：
+- immobilized, immobilised, supported, bound, conjugated
+- nanoparticle, nanocomplex, nanofiber, graphene, silica, polymer
+- bead, resin, matrix, carrier
+
+**提取方式**：
+- ✅ 提取所有动力学数据（Km, kcat, kcat/Km）
+- ✅ 标记`enzyme_state: "immobilized"`
+- ✅ 在`notes`中记录载体信息
+
+**示例表格**：
+
+| Enzyme | Km (μM) | Notes |
+|--------|---------|-------|
+| Free laccase | 2.3 | ✅ enzyme_state: "free" |
+| Immobilized laccase | 15.2 | ✅ enzyme_state: "immobilized" |
+| Laccase-chitosan | 8.1 | ✅ enzyme_state: "immobilized", notes: "Carrier: chitosan" |
+
+### 2. 粗酶/细胞提取物数据提取
+
+**识别关键词**：
+- crude extract, crude enzyme, cell lysate, culture supernatant
+- fermentation broth, fungal extract, bacterial culture
+
+**提取方式**：
+- ✅ 提取所有动力学数据
+- ✅ 标记`enzyme_state: "crude"` 或 `"cell_free"`
+- ✅ 在`notes`中记录状态
+
+**示例表格**：
+
+| Source | Substrate | Km (μM) | Action |
+|--------|-----------|---------|--------|
+| Crude extract from A. niger | AFB1 | 25 | ✅ enzyme_state: "crude", sequence_availability: "none" |
+| Cell-free supernatant | DON | 12 | ✅ enzyme_state: "cell_free" |
+
+### 3. 比较表格处理
+
+**固定化酶 vs 游离酶比较**：
+- ✅ 提取所有行的数据
+- ✅ 用`enzyme_state`字段区分
+
+**示例表格**：
+
+| Sample | Km (μM) | kcat (min⁻¹) |
+|--------|---------|--------------|
+| Free laccase | 2.3 | 25.1 |
+| Laccase-chitosan | 15.2 | 12.5 |
+| Laccase-silica | 18.7 | 10.2 |
+
+**提取结果**：
+```json
+[
+  {
+    "enzyme_name": "laccase",
+    "substrate": "Aflatoxin B1",
+    "Km_value": 2.3,
+    "Km_unit": "μM",
+    "kcat_value": 0.42,
+    "kcat_unit": "s⁻¹",
+    "enzyme_state": "free"
+  },
+  {
+    "enzyme_name": "laccase",
+    "substrate": "Aflatoxin B1",
+    "Km_value": 15.2,
+    "Km_unit": "μM",
+    "kcat_value": 0.21,
+    "kcat_unit": "s⁻¹",
+    "enzyme_state": "immobilized",
+    "notes": "Carrier: chitosan"
+  },
+  {
+    "enzyme_name": "laccase",
+    "substrate": "Aflatoxin B1",
+    "Km_value": 18.7,
+    "Km_unit": "μM",
+    "kcat_value": 0.17,
+    "kcat_unit": "s⁻¹",
+    "enzyme_state": "immobilized",
+    "notes": "Carrier: silica"
+  }
+]
+```
+
+---
+
+## 🚫 不提取的情况
+
+**跳过以下情况**：
+
+❌ 只有酶名称和来源生物，无任何动力学参数
+❌ 只有定性描述（"酶能够降解毒素"）而无定量数据
+❌ 只有产物检测（"HPLC检测到产物"）而无动力学参数
+❌ 底物不是霉菌毒素
+❌ 反应是生物活化（毒性增加）
+❌ 酶混合物（无法确定具体酶）
+
+---
+
+## ✅ 提取原则总结
+
+1. **核心要求**：底物必须是霉菌毒素，反应必须是降解相关
+2. **酶状态扩展**：接受游离酶、固定化酶、粗酶等多种状态
+3. **质量标记**：用enzyme_state和sequence_availability字段区分数据质量
+4. **单位统一**：自动转换为标准单位（μM, s⁻¹, M⁻¹s⁻¹）
+5. **上下文保留**：在notes中记录所有相关信息
+
+---
+
+## CRITICAL EXTRACTION RULES
+
+1. **Extract ALL enzyme rows** - even without Km/kcat values
+2. **Use STANDARD NAMES**: Apply naming rules above for organism and substrate
+3. **Single letters in context**: F→Fumonisin B1, Z→Zearalenone, D→Deoxynivalenol
+4. **Separate enzyme name and type**: "CotA laccase" → name="CotA", type="laccase"
+5. **Numbers from IMAGE** - not markdown (may have OCR errors)
+6. **Separate value/unit**: "15.5 μM" → Km_value:15.5, Km_unit:"μM"
+7. **Apply caption conditions** (pH, temp) to all rows
+
+---
+
+## COLUMN MAPPING
+
+| Column Pattern | Field |
+|----------------|-------|
+| Enzyme, Protein | enzyme_name |
+| Type, Class, Category (of enzyme) | enzyme_type |
+| Source, Organism | organism + strain |
+| Substrate, Mycotoxin | substrate |
+| Km, K_m | Km_value + Km_unit |
+| kcat, k_cat | kcat_value + kcat_unit |
+| Products | products array |
+| Degradation %, Efficiency | degradation_efficiency |
+| pH, Temperature | ph, temperature_value |
+
+---
+
+## Temperature and Stability Extraction
+
+1. **Optimal Temperature Inference**:
+   - If table lists **Activity vs Temperature**:
+     - Identify the temperature with the HIGHEST activity.
+     - Extract this as `optimal_temperature_value`.
+     - Do NOT extract every row as a separate record unless they represent different substrates/enzymes.
+     - If the table is JUST for determining optimums, summarize it into one record with `optimal_temperature_value`.
+
+2. **Thermal Stability Extraction**:
+   - If table lists **Residual Activity vs Temperature** (after incubation):
+     - This is a stability test.
+     - Extract the highest temperature where activity is maintained (or the range) into `thermal_stability`.
+     - Look for incubation time in caption (e.g., "incubated for 1h") -> `thermal_stability_time`.
+
+---
+
+## CONFIDENCE SCORING (1-5)
+
+- **5**: Has Km/kcat/kcat_Km + organism + conditions + exact values
+- **4**: Has kinetic params OR complete enzyme info, >60% fields
+- **3**: Has enzyme + substrate, partial data
+- **2**: Minimal data, uncertain abbreviations
+- **1**: Very incomplete, significant OCR issues
+
+---
+
+## WORKFLOW
+
+1. Count data rows in IMAGE (skip headers)
+2. Check for enzyme type column → map to enzyme_type
+3. For each row: extract enzyme_name, enzyme_type, substrate, values+units, organism, products
+4. Determine enzyme_state, sequence_availability based on keywords
+5. Apply caption conditions (pH, temp) to all rows
+6. Output JSON only (no markdown blocks)
+
+---
+
+**Now extract from the provided table:**

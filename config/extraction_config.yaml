@@ -1,0 +1,90 @@
+# MycoKin-Extractor: Heterogeneous Model Configuration
+# Hybrid Strategy: GPT-5 for text (LaTeX understanding) + ZhipuAI for multimodal (stability)
+
+# ============================================================================
+# LLM Client Configuration - Hybrid Strategy for Best Performance
+# ============================================================================
+# Supported Providers:
+#   - openai: GPT-4o, GPT-5 (via relay)
+#   - deepseek: DeepSeek Chat/Reasoner
+#   - zhipuai: GLM-4.5-Air
+#   - moonshot/kimi: Kimi Vision (moonshot-v1-8k-vision-preview)
+#   - anthropic: Claude 3.5
+#   - gemini: Gemini Pro Vision
+#   - ollama: Local models
+# ============================================================================
+llm_clients:
+  # Text-only extraction client (DeepSeek for scientific text extraction)
+  # 避免与 Paper-level Aggregation 的智谱模型冲突
+  text_client:
+    provider: "deepseek"             
+    model_name: "deepseek-chat"   
+
+  # Multimodal extraction client (ZhipuAI GLM for vision tasks)
+  # Using ZhipuAI GLM-4.6V for multimodal extraction
+  multimodal_client:
+    provider: "zhipuai"
+    model_name: "glm-4.6v"
+
+  # Review Agent client (GPT-5.1 for intelligent post-extraction review)
+  review_client:
+    provider: "openai"
+    model_name: "gpt-5.1"
+# Extraction Parameters
+# ============================================================================
+extraction_parameters:
+  temperature: 0.1                  # Low temperature for consistent extraction
+  max_text_tokens: 8192             # Token limit for text extraction (DeepSeek max 8192)
+  max_multimodal_tokens: 8192       # Token limit for multimodal extraction (GLM-4.6V supports 8K)
+  skip_existing: true               # Skip already processed papers
+  clean_references: true            # Remove reference sections before extraction
+  max_retries: 5                    # Maximum retries for failed LLM calls
+  timeout: 600                      # Extended timeout for processing (10 mins)
+  skip_client_test: true            # Skip client pre-testing to avoid initialization failures
+
+# ============================================================================
+# File Paths
+# ============================================================================
+file_paths:
+  # Input/Output Directories
+  input_dir: "data/ground_truth/ground_truth_parse"    # Directory with _content_list.json files
+  output_json_dir: "results/extraction_json"           # Output directory for raw JSON
+  output_csv_dir: "results/extraction_csv"             # Output directory for CSV files
+  
+  # Prompt Templates (v4.2 schema with is_wild_type field)
+  prompt_text: "prompts/prompts_extract_from_text.txt"
+  prompt_table: "prompts/prompts_extract_from_table.txt"
+  prompt_figure: "prompts/prompts_extract_from_figure.txt"
+
+# ============================================================================
+# Logging Configuration
+# ============================================================================
+logging:
+  level: "INFO"                     # Options: DEBUG, INFO, WARNING, ERROR
+  log_file: "extraction_pipeline.log"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+# ============================================================================
+# Processing Options
+# ============================================================================
+processing:
+  batch_size: 3                     # Number of papers to process in parallel (increased for speed)
+  enable_caching: false             # Cache LLM responses (future feature)
+  enable_figure_extraction: false   # Disabled - figures rarely contain kinetics data
+  
+# ============================================================================
+# Cost Optimization Notes
+# ============================================================================
+# This configuration optimizes for cost and performance:
+# 
+# Text Extraction (DeepSeek-Chat):
+#   - Cost: ~$0.14 per million input tokens
+#   - Best for: Text paragraphs and equations (no images needed)
+#   - Performance: Fast, accurate for structured data extraction
+#
+# Multimodal Extraction (GLM-4.5V):
+#   - Cost: ~¥10 per million input tokens
+#   - Best for: Tables and figures requiring vision understanding
+#   - Performance: State-of-the-art vision capabilities
+#
+# Expected savings: 60-80% compared to using GPT-4o for all tasks

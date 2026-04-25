@@ -1,0 +1,19 @@
+# MycoKin-Extractor: Step 1 - Literature Retrieval
+# Python dependencies for multi-source scientific literature search and download
+
+# Core dependencies
+biopython>=1.81          # PubMed/Entrez API access
+requests>=2.31.0         # HTTP requests for API calls
+arxiv>=2.0.0             # arXiv API client
+python-dotenv>=1.0.0     # Environment variable management
+pyyaml>=6.0              # YAML configuration file parsing
+
+# HTTP and SSL
+urllib3>=2.0.0           # Advanced HTTP client features
+certifi>=2023.0.0        # SSL certificate bundle
+
+# LaTeX processing (for text extraction)
+pylatexenc>=2.10         # Convert LaTeX math to Unicode text
+
+# Optional but recommended
+tqdm>=4.65.0             # Progress bars for downloads

@@ -1,0 +1,130 @@
+# MycoKin-Extractor: Expanded Database Configuration (v7.0)
+# 扩展数据库配置 - 接受固定化酶和粗酶数据
+
+# 此配置文件对应 "霉菌毒素降解酶数据库" 策略
+#
+# 核心要求（保持不变）：
+# 1. ✅ 底物必须是霉菌毒素
+# 2. ✅ 反应必须是降解相关
+#
+# 扩展内容（放宽限制）：
+# 1. ✅ 移除序列要求 - 接受固定化酶、粗酶等无法获取序列的情况
+# 2. ✅ 移除"游离酶"限制 - 接受固定化酶数据
+# 3. ✅ 新增质量标记字段 - 用字段区分数据质量
+
+# ============================================================================
+# LLM Client Configuration
+# ============================================================================
+llm_clients:
+  # ========== Paper-level Aggregation 模式客户端配置 ==========
+  # 3个学生模型（文本提取）
+  kimi_client:
+    provider: "moonshot"
+    model_name: "kimi-k2-0905-preview"
+
+  deepseek_client:
+    provider: "deepseek"
+    model_name: "deepseek-chat"
+
+  glm47_client:
+    provider: "zhipuai"
+    model_name: "glm-4.7"
+
+  # 1个视觉模型（表格/图片提取）
+  glm46v_client:
+    provider: "zhipuai"
+    model_name: "glm-4.6v"
+
+  # 1个教师模型（聚合Agent）
+  aggregation_client:
+    provider: "openai"
+    model_name: "gpt-5.1"
+
+  # ========== 兼容旧配置 ==========
+  text_client:
+    provider: "deepseek"
+    model_name: "deepseek-chat"
+
+  multimodal_client:
+    provider: "zhipuai"
+    model_name: "glm-4.6v"
+
+  review_client:
+    provider: "openai"
+    model_name: "gpt-5.1"
+
+# ============================================================================
+# Extraction Parameters
+# ============================================================================
+extraction_parameters:
+  temperature: 0.1
+  max_text_tokens: 8192      # DeepSeek限制最大8192
+  max_multimodal_tokens: 8192
+  skip_existing: true
+  clean_references: true
+  max_retries: 5
+  timeout: 600
+  skip_client_test: true
+
+# ============================================================================
+# File Paths - 使用扩展版Prompts
+# ============================================================================
+file_paths:
+  input_dir: "data/ground_truth/ground_truth_parse"
+  output_json_dir: "results/extraction_json_v7_expanded"
+  output_csv_dir: "results/extraction_csv_v7_expanded"
+
+  # 扩展版 Prompt Templates (v7.0 - 接受固定化酶/粗酶)
+  prompt_text: "prompts/prompts_extract_from_text_v7_expanded.txt"
+  prompt_table: "prompts/prompts_extract_from_table_v7_expanded.txt"
+  prompt_figure: "prompts/prompts_extract_from_figure.txt"
+
+# ============================================================================
+# Logging Configuration
+# ============================================================================
+logging:
+  level: "INFO"
+  log_file: "extraction_pipeline_v7_expanded.log"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+# ============================================================================
+# Processing Options
+# ============================================================================
+processing:
+  batch_size: 3
+  enable_caching: false
+  enable_figure_extraction: false
+
+# ============================================================================
+# 扩展提取策略说明
+# ============================================================================
+# v7.0 扩展策略的特点：
+#
+# 保持的限制（必须满足）：
+# 1. 底物必须是霉菌毒素（不接受ABTS、guaiacol等通用底物）
+# 2. 反应必须是降解相关（不接受生物活化反应）
+#
+# 放宽的限制：
+# 1. 酶状态扩展：
+#    - 游离酶 (Free enzyme) ✓
+#    - 固定化酶 (Immobilized enzyme) ✓ [新增]
+#    - 粗酶 (Crude enzyme) ✓ [新增]
+#    - 部分纯化 (Partially purified) ✓ [新增]
+#    - 细胞提取物 (Cell lysate) ✓ [新增]
+#    - 培养上清液 (Culture supernatant) ✓ [新增]
+#
+# 2. 序列要求放宽：
+#    - 不再强制要求序列ID
+#    - 用 sequence_availability 字段标记
+#    - 可选值: full_sequence | database_id | gene_name_only | none
+#
+# 3. 质量标记字段（新增）：
+#    - enzyme_state: free|immobilized|crude|partially_purified|cell_free|commercial
+#    - sequence_availability: full_sequence|database_id|gene_name_only|none
+#
+# 4. 预期效果：
+#    - 数据库规模：预计增加 50-100%
+#    - 主要新增来源：固定化酶研究、粗酶研究
+#    - 数据质量：通过质量标记字段区分
+#
+# ============================================================================

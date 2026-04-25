@@ -1,0 +1,227 @@
+# PDF Mycotoxin Enzyme Kinetics Extraction for Google AI Studio
+
+## 任务说明
+请分析上传的PDF文档，提取所有与霉菌毒素降解相关的酶动力学数据。文档可能包含多页，需要综合分析全文。
+
+## 提取目标
+
+### 必须满足以下任一条件才提取：
+- 包含 Km、Vmax、kcat 或 kcat/Km 动力学参数（在正文或表格中）
+- 包含酶+底物+降解效率/产物信息
+- 包含酶+底物+EC号或UniProt ID
+- 表格包含动力学参数数据
+
+### 重点扫描区域：
+1. **摘要** - 关键发现的总结
+2. **结果表格** - 动力学参数的主要来源
+3. **正文段落** - 包含酶名、来源生物、实验条件
+4. **图表标题** - 可能包含补充数据
+5. **材料与方法** - 生物来源、实验条件
+
+## 数据Schema（JSON格式）
+
+```json
+[
+  {
+    "enzyme_name": "酶的简称，例如 CotA, AFO, His6-OPH（必填）",
+    "enzyme_full_name": "完整酶名，未找到则为 null",
+    "enzyme_type": "酶的分类：laccase/peroxidase/oxidase/reductase/hydrolase/protease，不清楚则为 null",
+    "ec_number": "EC编号，格式 EC X.X.X.X，缺失则为 null",
+    "gene_name": "基因名（小写），缺失则为 null",
+    
+    "uniprot_id": "UniProt登录号（如 Q8X1Z5），缺失则为 null",
+    "genbank_id": "GenBank ID，缺失则为 null",
+    "pdb_id": "PDB ID，缺失则为 null",
+    "sequence": "氨基酸序列（如果论文提供），缺失则为 null",
+    
+    "organism": "来源生物（完整物种名），缺失则为 null",
+    "strain": "菌株信息，缺失则为 null",
+    "is_recombinant": true/false/null,
+    "is_wild_type": true/false/null,
+    "mutations": "突变编码（如 N208S），野生型则为 null",
+    
+    "substrate": "霉菌毒素底物（如 AFB1, OTA, ZEN）（必填）",
+    "substrate_smiles": "SMILES字符串，缺失则为 null",
+    "substrate_concentration": "底物浓度，如 10 μM，缺失则为 null",
+    
+    "Km_value": 数值或 null,
+    "Km_unit": "μM/mM/nM 或 null",
+    "Vmax_value": 数值或 null,
+    "Vmax_unit": "μM/min/U/mg 或 null",
+    "kcat_value": 数值或 null,
+    "kcat_unit": "s⁻¹/min⁻¹ 或 null",
+    "kcat_Km_value": 数值或 null,
+    "kcat_Km_unit": "M⁻¹s⁻¹/mM⁻¹s⁻¹ 或 null",
+    
+    "degradation_efficiency": 降解效率百分比数值或 null,
+    "reaction_time_value": 反应时间数值或 null,
+    "reaction_time_unit": "h/min/s 或 null",
+    
+    "products": [
+      {
+        "name": "降解产物名称",
+        "toxicity_change": "less toxic/non-mutagenic/null"
+      }
+    ],
+    
+    "temperature_value": 温度数值或 null,
+    "temperature_unit": "°C/K 或 null",
+    "ph": pH数值或 null,
+    "optimal_ph": "最适pH范围或数值或 null",
+    "optimal_temperature_value": 最适温度数值或 null,
+    "optimal_temperature_unit": "°C/K 或 null",
+    
+    "source_location": "数据来源简述：'Table 1', 'Abstract', 'Results section page X'",
+    "notes": "额外的上下文或备注信息",
+    "confidence_score": 1-5（可信度评分）
+  }
+]
+```
+
+## 关键提取规则
+
+### 1. 表格阅读规则
+- **仔细阅读所有列和行**
+- **正确匹配列标题与数值**
+- 如果表格跨多页，需要合并数据
+- 标准差（±）应记录在notes中，但不包含在主数值里
+- 注意单位：常见单位包括 μM, mM, nM（Km）; μM/min, U/mg（Vmax）; s⁻¹（kcat）; M⁻¹s⁻¹（kcat/Km）
+
+### 2. 多条记录规则
+- **每个酶-底物组合** = 独立记录
+- **同一酶-底物在不同条件下**（pH、温度变化）如果动力学数值不同 = 独立记录
+- **突变体 vs 野生型** = 独立记录
+- **重组酶 vs 天然酶** = 独立记录
+
+### 3. 上下文推断
+- 将酶简称与完整描述关联
+- 展开缩写的物种名（B. subtilis → Bacillus subtilis）
+- 区分来源生物和表达宿主
+
+### 4. 可信度评分标准
+| 分数 | 标准 |
+|------|------|
+| 5 | 完整数据：动力学参数 + 生物来源 + 实验条件 + 数据库ID |
+| 4 | 有动力学参数 + 生物来源 或 完整酶名 |
+| 3 | 有动力学参数，部分元数据 |
+| 2 | 数据稀疏，部分关键字段缺失 |
+| 1 | 最少/不确定的数据 |
+
+## 常见霉菌毒素缩写
+- **AFB1/AFB2**: 黄曲霉毒素 B1/B2
+- **OTA**: 赭曲霉毒素 A
+- **ZEN/ZEA**: 玉米赤霉烯酮
+- **DON**: 脱氧雪腐镰刀菌烯醇
+- **FB1/FB2**: 伏马菌素 B1/B2
+- **T-2**: T-2毒素
+- **PAT**: 棒曲霉素
+
+## 输出格式要求
+- **仅返回有效的JSON数组**
+- **不要包含markdown代码块标记**（即不要用 ```json ... ```）
+- **不要在JSON前后添加任何解释性文字**
+- **如果没有找到相关数据，返回空数组 []**
+
+## 提取示例
+
+### 示例输入（论文片段）：
+```
+Table 2. Kinetic parameters of recombinant laccase CotA from Bacillus subtilis
+
+Substrate    Km (μM)    Vmax (μM/min)    kcat (s⁻¹)    kcat/Km (M⁻¹s⁻¹)
+AFB1         12.5±1.2   0.85±0.05        1.42          1.14×10⁵
+OTA          25.3±2.1   1.20±0.08        2.00          7.91×10⁴
+
+Reactions were performed at pH 5.0 and 30°C. The CotA gene (GenBank: AJ233739) 
+was expressed in E. coli BL21(DE3).
+```
+
+### 示例输出：
+```json
+[
+  {
+    "enzyme_name": "CotA",
+    "enzyme_full_name": "Laccase",
+    "enzyme_type": "laccase",
+    "ec_number": null,
+    "gene_name": "cotA",
+    "uniprot_id": null,
+    "genbank_id": "AJ233739",
+    "pdb_id": null,
+    "sequence": null,
+    "organism": "Bacillus subtilis",
+    "strain": null,
+    "is_recombinant": true,
+    "is_wild_type": null,
+    "mutations": null,
+    "substrate": "AFB1",
+    "substrate_smiles": null,
+    "substrate_concentration": null,
+    "Km_value": 12.5,
+    "Km_unit": "μM",
+    "Vmax_value": 0.85,
+    "Vmax_unit": "μM/min",
+    "kcat_value": 1.42,
+    "kcat_unit": "s⁻¹",
+    "kcat_Km_value": 1.14e5,
+    "kcat_Km_unit": "M⁻¹s⁻¹",
+    "degradation_efficiency": null,
+    "reaction_time_value": null,
+    "reaction_time_unit": null,
+    "products": [],
+    "temperature_value": 30,
+    "temperature_unit": "°C",
+    "ph": 5.0,
+    "optimal_ph": null,
+    "optimal_temperature_value": null,
+    "optimal_temperature_unit": null,
+    "source_location": "Table 2",
+    "notes": "Standard deviation: Km ±1.2, Vmax ±0.05. Expressed in E. coli BL21(DE3)",
+    "confidence_score": 4
+  },
+  {
+    "enzyme_name": "CotA",
+    "enzyme_full_name": "Laccase",
+    "enzyme_type": "laccase",
+    "ec_number": null,
+    "gene_name": "cotA",
+    "uniprot_id": null,
+    "genbank_id": "AJ233739",
+    "pdb_id": null,
+    "sequence": null,
+    "organism": "Bacillus subtilis",
+    "strain": null,
+    "is_recombinant": true,
+    "is_wild_type": null,
+    "mutations": null,
+    "substrate": "OTA",
+    "substrate_smiles": null,
+    "substrate_concentration": null,
+    "Km_value": 25.3,
+    "Km_unit": "μM",
+    "Vmax_value": 1.20,
+    "Vmax_unit": "μM/min",
+    "kcat_value": 2.00,
+    "kcat_unit": "s⁻¹",
+    "kcat_Km_value": 7.91e4,
+    "kcat_Km_unit": "M⁻¹s⁻¹",
+    "degradation_efficiency": null,
+    "reaction_time_value": null,
+    "reaction_time_unit": null,
+    "products": [],
+    "temperature_value": 30,
+    "temperature_unit": "°C",
+    "ph": 5.0,
+    "optimal_ph": null,
+    "optimal_temperature_value": null,
+    "optimal_temperature_unit": null,
+    "source_location": "Table 2",
+    "notes": "Standard deviation: Km ±2.1, Vmax ±0.08. Expressed in E. coli BL21(DE3)",
+    "confidence_score": 4
+  }
+]
+```
+
+---
+
+**现在请分析上传的PDF文档，按照上述schema提取所有相关的酶动力学数据。记住：直接输出JSON数组，不要添加任何额外的文字或代码块标记。**

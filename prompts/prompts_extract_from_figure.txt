@@ -1,0 +1,200 @@
+**TASK:** Extract kinetic parameters and degradation data from scientific figures.
+
+**SOURCES:** 1) Figure Image (PRIMARY), 2) Caption Text (CRITICAL for context)
+
+---
+
+## 🚨 CRITICAL: FREE ENZYME ONLY (Intrinsic Kinetics)
+
+**Extract ONLY free/soluble enzyme data for protein sequence modeling.**
+
+### ✅ ACCEPT: Free Enzyme Figures
+Caption indicators:
+- "Free enzyme", "Purified enzyme", "Soluble enzyme", "Native enzyme"
+- Plain enzyme names without modifiers: "CotA", "Laccase", "Thermolysin"
+- No mention of support/carrier/material
+
+### ❌ REJECT: Immobilized/Modified Enzyme Figures
+DO NOT extract if figure caption/legend contains:
+
+**Trigger words (if ANY appear, SKIP the figure):**
+- Immobilization: immobilized, supported, bound, attached, cross-linked, conjugated
+- Materials: nanocomplex, nanoparticle, nanofiber, /PLE, /graphene, /polymer, /chitosan
+- Devices: biosensor, electrode, reactor, microreactor
+
+**Examples:**
+- ❌ "Fig 3: Kinetics of Thermolysin/PLE50 nanocomplex" → SKIP ENTIRE FIGURE
+- ❌ "Panel B: Immobilized CotA on graphene" → SKIP THIS PANEL
+- ❌ "His6-OPH/PLE50 performance" → SKIP (complex)
+- ✅ "Fig 2: Kinetic parameters of purified CotA laccase" → EXTRACT
+
+### 📊 Comparative Figures (Free vs. Immobilized)
+If figure compares conditions:
+- ONLY extract data points/bars labeled "Free enzyme"  
+- Skip all "Immobilized", "Nanocomplex", or material-labeled data
+- Add note: "Excluded immobilized enzyme data from this figure"
+
+---
+
+## CRITICAL EXTRACTION RULES
+
+1. **Caption FIRST** - provides enzyme names, types, and experimental context
+2. **Separate enzyme name and type**:
+   - "CotA laccase" → enzyme_name="CotA", enzyme_type="laccase"
+   - Common types: laccase, peroxidase, oxidase, reductase, dehydrogenase, hydrolase
+3. **One reaction = one record** - multiple products go in products array
+   - ✅ products: [{"name":"epi-AFQ₁"}, {"name":"AFQ₁"}]
+   - ❌ Don't split into multiple records
+4. **Global context applies to all panels** unless explicitly stated otherwise
+5. **Separate value/unit**: "15.5 μM" → Km_value:15.5, Km_unit:"μM"
+6. **🔬 Biochemical parameter recognition**:
+   - If caption shows "Vmax/E0" or "Vmax per enzyme" → Extract as **kcat_value** (NOT Vmax_value)
+   - If caption shows "Vmax/(E0×Km)" → Extract as **kcat_Km_value**
+   - These represent intrinsic enzyme kinetics: kcat = Vmax/E0
+
+---
+
+## FIGURE TYPE STRATEGIES
+
+| Figure Type | Extract | Ignore |
+|-------------|---------|--------|
+| Michaelis-Menten/Lineweaver-Burk | Labeled Km, Vmax text | Raw data points |
+| Bar Charts/Time-Course | Y-axis values, degradation % | - |
+| pH/Temp Optimization | Peak value → optimal_ph/temp | - |
+| Pathway Diagrams | Enzyme→Products relationship | Quantitative fields (set null) |
+
+---
+
+## CONTEXT KEYWORDS
+
+| Keyword in Caption | Field | Value |
+|--------------------|-------|-------|
+| "human liver microsomes (HLM)" | organism | "human" |
+| "recombinant" / "rhCYP" | is_recombinant | true |
+| "wild-type" | is_wild_type | true |
+| "from Aspergillus oryzae" | organism | "Aspergillus oryzae" |
+| "CYP3A4 supersomes" | enzyme_name | "CYP3A4" |
+
+---
+
+## OUTPUT SCHEMA (JSON array)
+
+```json
+[{
+  "enzyme_name": "string (REQUIRED)",
+  "enzyme_full_name": "string|null",
+  "enzyme_type": "string|null (laccase, peroxidase, oxidase, reductase, hydrolase...)",
+  "ec_number": "string|null",
+  "gene_name": "string|null",
+  "uniprot_id": "string|null",
+  "genbank_id": "string|null",
+  "pdb_id": "string|null",
+  "sequence": "string|null",
+  "organism": "string|null",
+  "strain": "string|null",
+  "is_recombinant": "bool|null",
+  "is_wild_type": "bool|null",
+  "mutations": "string|null",
+  "substrate": "string (REQUIRED)",
+  "substrate_smiles": "string|null",
+  "substrate_concentration": "string|null",
+  "Km_value": "number|null",
+  "Km_unit": "string|null",
+  "Vmax_value": "number|null",
+  "Vmax_unit": "string|null",
+  "kcat_value": "number|null",
+  "kcat_unit": "string|null",
+  "kcat_Km_value": "number|null",
+  "kcat_Km_unit": "string|null",
+  "degradation_efficiency": "number|null",
+  "reaction_time_value": "number|null",
+  "reaction_time_unit": "string|null",
+  "products": [{"name": "string", "toxicity_change": "string|null"}],
+  "temperature_value": "number|null",
+  "temperature_unit": "string|null",
+  "ph": "number|string|null",
+  "optimal_ph": "string|null",
+  "optimal_temperature_value": "number|null",
+  "optimal_temperature_unit": "string|null",
+  "thermal_stability": "number|null",
+  "thermal_stability_unit": "string|null",
+  "thermal_stability_time": "number|null",
+  "thermal_stability_time_unit": "string|null",
+  "notes": "string|null (include panel label, e.g., 'Panel D')",
+  "confidence_score": "1-5"
+}]
+```
+
+---
+
+## CONFIDENCE SCORING (1-5)
+
+- **5**: Labeled kinetic params + complete enzyme info + conditions
+- **4**: Has params OR clear pathway, good caption context
+- **3**: Enzyme + substrate, some values estimated from graph
+- **2**: Minimal data, vague caption, low-resolution
+- **1**: Extremely unclear, cannot reliably extract
+
+---
+
+## WORKFLOW
+
+1. **Read caption** - identify figure ID, enzyme name+type, organism, conditions
+2. **Determine figure type** - use appropriate extraction strategy
+3. **For each panel/reaction**:
+   - Apply global context
+   - Extract enzyme_name (separate from type)
+   - Extract substrate, products (all in one array)
+   - Extract quantitative values (separate value/unit)
+4. **Output JSON only** (no markdown blocks)
+
+---
+
+## Example Output
+
+```json
+[{
+  "enzyme_name": "CotA",
+  "enzyme_full_name": null,
+  "enzyme_type": "laccase",
+  "ec_number": null,
+  "gene_name": null,
+  "uniprot_id": null,
+  "genbank_id": null,
+  "pdb_id": null,
+  "sequence": null,
+  "organism": "Bacillus subtilis",
+  "strain": null,
+  "is_recombinant": true,
+  "is_wild_type": null,
+  "mutations": null,
+  "substrate": "AFB1",
+  "substrate_concentration": null,
+  "Km_value": null,
+  "Km_unit": null,
+  "Vmax_value": null,
+  "Vmax_unit": null,
+  "kcat_value": null,
+  "kcat_unit": null,
+  "kcat_Km_value": null,
+  "kcat_Km_unit": null,
+  "degradation_efficiency": null,
+  "reaction_time_value": null,
+  "reaction_time_unit": null,
+  "products": [{"name": "epi-AFQ₁", "toxicity_change": null}, {"name": "AFQ₁", "toxicity_change": null}],
+  "temperature_value": null,
+  "temperature_unit": null,
+  "ph": null,
+  "optimal_ph": null,
+  "optimal_temperature_value": null,
+  "optimal_temperature_unit": null,
+  "thermal_stability": null,
+  "thermal_stability_unit": null,
+  "thermal_stability_time": null,
+  "thermal_stability_time_unit": null,
+  "notes": "Panel D",
+  "confidence_score": 3
+}]
+```
+
+**Now extract from the provided figure:**
