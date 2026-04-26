@@ -33,6 +33,7 @@ from src.utils.quality_constraints import QualityConstraintFilter  # Quality con
 from src.utils.sequence_enricher import SequenceEnricher
 from src.utils.quality_analyzer import QualityAnalyzer, analyze_extraction_results  # 质量分析替代HITL
 from src.utils.logging_config import setup_logging, get_logger
+from src.utils.token_usage import TokenUsageTracker
 
 # Setup logging to logs/ directory
 logger = get_logger(__name__)
@@ -320,6 +321,7 @@ class EnhancedExtractionPipeline:
             }
         """
         start_time = time.time()
+        TokenUsageTracker.reset()
         self.stats.total_papers = len(paper_dirs)
         
         logger.info("=" * 80)
@@ -1736,12 +1738,19 @@ class EnhancedExtractionPipeline:
             logger.warning(f"⚠️ Quality analysis failed: {e}")
 
         # 3. 保存流水线统计信息
+        token_usage = TokenUsageTracker.summary()
+        token_file = Path(output_dir) / f"token_usage_{timestamp}.json"
+        with open(token_file, 'w', encoding='utf-8') as f:
+            json.dump(token_usage, f, ensure_ascii=False, indent=2)
+        logger.info(f"💾 Token usage summary saved to: {token_file}")
+
         stats_file = Path(output_dir) / f"pipeline_stats_{timestamp}.json"
         with open(stats_file, 'w', encoding='utf-8') as f:
             json.dump({
                 "statistics": self.stats.to_dict(),
                 "failed_papers": failed_papers,
-                "quality_report": quality_report if 'quality_report' in locals() else None
+                "quality_report": quality_report if 'quality_report' in locals() else None,
+                "token_usage": token_usage.get("totals", {})
             }, f, ensure_ascii=False, indent=2)
 
         logger.info(f"💾 Pipeline statistics saved to: {stats_file}")
@@ -1786,21 +1795,23 @@ class EnhancedExtractionPipeline:
         logger.info("💰 TOKEN USAGE STATISTICS")
         logger.info("-" * 40)
         try:
-            from src.llm_clients.providers import ZhipuAIClient
-            token_stats = ZhipuAIClient.get_global_token_stats()
+            token_summary = TokenUsageTracker.summary()
+            token_stats = token_summary["totals"]
             logger.info(f"  Prompt tokens:      {token_stats['prompt_tokens']:,}")
             logger.info(f"  Completion tokens:  {token_stats['completion_tokens']:,}")
             logger.info(f"  Total tokens:       {token_stats['total_tokens']:,}")
             logger.info(f"  API requests:       {token_stats['request_count']}")
+            logger.info(f"  Estimated requests: {token_stats.get('estimated_request_count', 0)}")
             
-            # Cost estimation (GLM-4-Flash pricing: input ¥0.4/M, output ¥0.8/M)
-            input_cost = token_stats['prompt_tokens'] / 1_000_000 * 0.4
-            output_cost = token_stats['completion_tokens'] / 1_000_000 * 0.8
-            total_cost = input_cost + output_cost
-            logger.info(f"")
-            logger.info(f"  💵 Estimated cost:  ¥{total_cost:.4f}")
-            logger.info(f"     Input:  ¥{input_cost:.4f} ({token_stats['prompt_tokens']:,} tokens @ ¥0.4/M)")
-            logger.info(f"     Output: ¥{output_cost:.4f} ({token_stats['completion_tokens']:,} tokens @ ¥0.8/M)")
+            logger.info("")
+            logger.info("  By provider:")
+            for provider, stats in token_summary.get("by_provider", {}).items():
+                cost = stats.get("estimated_cost", 0.0)
+                currency = stats.get("currency", "")
+                logger.info(
+                    f"    - {provider}: {stats['total_tokens']:,} tokens, "
+                    f"{stats['request_count']} calls, cost {cost:.4f} {currency}"
+                )
         except Exception as e:
             logger.warning(f"Could not retrieve token statistics: {e}")
         

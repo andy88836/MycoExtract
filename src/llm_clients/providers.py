@@ -27,6 +27,7 @@ from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
+from src.utils.token_usage import TokenUsageTracker
 
 # Load environment variables
 load_dotenv()
@@ -97,7 +98,17 @@ class OpenAIClient(BaseLLMClient):
             
         try:
             response = self.client.chat.completions.create(**params)
-            return response.choices[0].message.content
+            content = response.choices[0].message.content
+            TokenUsageTracker.record_from_response(
+                provider=self.__class__.__name__,
+                model=self.model_name,
+                response=response,
+                messages=processed_messages,
+                response_text=content or "",
+                is_multimodal=is_multimodal,
+                task=kwargs.get("task"),
+            )
+            return content
         except Exception as e:
             logger.error(f"OpenAI API request failed: {e}")
             raise
@@ -215,7 +226,17 @@ class AnthropicClient(BaseLLMClient):
                 max_tokens=kwargs.get("max_tokens", 4096),
                 temperature=kwargs.get("temperature", 0.1)
             )
-            return response.content[0].text
+            content = response.content[0].text
+            TokenUsageTracker.record_from_response(
+                provider=self.__class__.__name__,
+                model=self.model_name,
+                response=response,
+                messages=processed_messages,
+                response_text=content or "",
+                is_multimodal=is_multimodal,
+                task=kwargs.get("task"),
+            )
+            return content
         except Exception as e:
             logger.error(f"Anthropic API request failed: {e}")
             raise
@@ -273,6 +294,15 @@ class GeminiClient(BaseLLMClient):
             
         try:
             response = self.model.generate_content(content, generation_config=generation_config)
+            TokenUsageTracker.record_from_response(
+                provider=self.__class__.__name__,
+                model=self.model_name,
+                response=response,
+                messages=messages,
+                response_text=response.text or "",
+                is_multimodal=is_multimodal,
+                task=kwargs.get("task"),
+            )
             return response.text
         except Exception as e:
             logger.error(f"Gemini API request failed: {e}")
@@ -306,7 +336,31 @@ class OllamaClient(BaseLLMClient):
         try:
             response = requests.post(f"{self.base_url}/api/generate", json=payload)
             response.raise_for_status()
-            return response.json()["response"]
+            data = response.json()
+            content = data["response"]
+            prompt_tokens = int(data.get("prompt_eval_count") or 0)
+            completion_tokens = int(data.get("eval_count") or 0)
+            if prompt_tokens or completion_tokens:
+                TokenUsageTracker.record(
+                    provider=self.__class__.__name__,
+                    model=self.model_name,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    source="api",
+                    is_multimodal=is_multimodal,
+                    task=kwargs.get("task"),
+                )
+            else:
+                TokenUsageTracker.record_from_response(
+                    provider=self.__class__.__name__,
+                    model=self.model_name,
+                    response=data,
+                    messages=messages,
+                    response_text=content or "",
+                    is_multimodal=is_multimodal,
+                    task=kwargs.get("task"),
+                )
+            return content
         except Exception as e:
             logger.error(f"Ollama API request failed: {e}")
             raise
@@ -378,7 +432,17 @@ class ZhipuAIClient(BaseLLMClient):
                 
                 logger.debug(f"Token usage - Prompt: {prompt_tokens}, Completion: {completion_tokens}")
             
-            return response.choices[0].message.content
+            content = response.choices[0].message.content
+            TokenUsageTracker.record_from_response(
+                provider=self.__class__.__name__,
+                model=self.model_name,
+                response=response,
+                messages=processed_messages,
+                response_text=content or "",
+                is_multimodal=is_multimodal,
+                task=kwargs.get("task"),
+            )
+            return content
         except Exception as e:
             logger.error(f"ZhipuAI API request failed: {e}")
             raise

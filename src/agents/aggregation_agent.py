@@ -111,7 +111,8 @@ class AggregationAgent:
                 response = self.llm_client.chat(
                     messages=conversation_history,
                     temperature=0.1,
-                    max_tokens=8000
+                    max_tokens=8000,
+                    task="teacher_aggregation"
                 )
                 
                 # 检查是否有工具调用请求

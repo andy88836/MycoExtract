@@ -793,7 +793,7 @@ class PaperLevelMultiModelExtractor:
         loop = asyncio.get_event_loop()
         response = await loop.run_in_executor(
             None, 
-            lambda: model.chat(messages=messages, temperature=0.1)
+            lambda: model.chat(messages=messages, temperature=0.1, task=f"text_{model_name}")
         )
         return self._parse_json_response(response)
     
@@ -861,7 +861,7 @@ class PaperLevelMultiModelExtractor:
         loop = asyncio.get_event_loop()
         response = await loop.run_in_executor(
             None, 
-            lambda: model.chat(messages=messages, temperature=0.1)
+            lambda: model.chat(messages=messages, temperature=0.1, task="table_text_only")
         )
         return self._parse_json_response(response)
     
@@ -882,7 +882,7 @@ class PaperLevelMultiModelExtractor:
         loop = asyncio.get_event_loop()
         response = await loop.run_in_executor(
             None, 
-            lambda: model.chat(messages=messages, temperature=0.1)
+            lambda: model.chat(messages=messages, temperature=0.1, task="table_text_only")
         )
         return self._parse_json_response(response)
     
@@ -1136,7 +1136,7 @@ class PaperLevelMultiModelExtractor:
         loop = asyncio.get_event_loop()
         response = await loop.run_in_executor(
             None,
-            lambda: model.chat(messages=messages, temperature=0.1)
+            lambda: model.chat(messages=messages, temperature=0.1, task=f"text_{model_name}")
         )
         return self._parse_json_response(response)
 
@@ -1288,7 +1288,7 @@ class PaperLevelMultiModelExtractor:
                 # 优化2: 降低max_tokens以减少token消耗
                 response = await loop.run_in_executor(
                     None,
-                    lambda: model.chat(messages=messages, is_multimodal=True, temperature=0.1, max_tokens=GLM46V_MAX_TOKENS)
+                    lambda: model.chat(messages=messages, is_multimodal=True, temperature=0.1, max_tokens=GLM46V_MAX_TOKENS, task="table_vision")
                 )
 
                 # 清理临时压缩文件
@@ -1313,7 +1313,7 @@ class PaperLevelMultiModelExtractor:
             try:
                 response = await loop.run_in_executor(
                     None, 
-                    lambda: model.chat(messages=messages, temperature=0.1)
+                    lambda: model.chat(messages=messages, temperature=0.1, task="table_text_only")
                 )
             except Exception as e:
                 logger.error(f"    Block {block_id}: Text-only extraction failed: {e}")
@@ -1362,7 +1362,7 @@ class PaperLevelMultiModelExtractor:
         loop = asyncio.get_event_loop()
         response = await loop.run_in_executor(
             None, 
-            lambda: model.chat(messages=messages, is_multimodal=True, temperature=0.1)
+            lambda: model.chat(messages=messages, is_multimodal=True, temperature=0.1, task="table_vision")
         )
         return self._parse_json_response(response)
     
