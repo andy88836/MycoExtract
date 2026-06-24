@@ -1,0 +1,356 @@
+# Mycotoxin Enzyme Kinetics Extraction v8.0 — Text source
+
+> 目标：构建霉菌毒素降解酶数据库
+> v8 vs v7 主要变化：
+> 1. measurement_type 收敛为 2 类（kinetic / degradation），其余类型不再产出
+> 2. kinetic 只抽取 Km / kcat / kcat_Km，不抽取 Vmax
+> 3. products / matrix / optimum / stability 升级为常规辅助列，不再是单独 measurement_type
+> 4. 酶名只保留 reported_enzyme_name / enzyme_name / gene_name 三列
+> 5. 突变体强制独立成行
+> 6. Specific activity (U/mg, U/mL) 不再强行装进 degradation_efficiency
+
+---
+
+## 🚨 FILTER 1: MYCOTOXIN SUBSTRATE (HARD GATE)
+
+**只接受以下底物：**
+
+- 黄曲霉毒素：AFB1, AFB2, AFG1, AFG2, AFM1, AFM2, AFP1, Aflatoxicol, AFQ1
+- 赭曲霉毒素：OTA, OTB, OTC, Ochratoxin α (alpha)
+- 单端孢霉烯族：DON, NIV, T-2, HT-2, 3-ADON, 15-ADON, DAS, FUS-X, DON-3-glucoside (D3G)
+- 伏马毒素：FB1, FB2, FB3, HFB1
+- 玉米赤霉烯酮：ZEN, α-ZEL, β-ZEL, ZEN-14-glucoside, Zearalanone, α-Zearalanol, β-Zearalanol
+- 其他：Patulin, Citrinin, Sterigmatocystin, CPA, ROQ-C, MPA, AOH, AME, TeA, Moniliformin, Beauvericin, Enniatins, Ergot alkaloids
+
+**❌ 必须拒绝：**
+- 通用酶底物：ABTS, guaiacol, catechol, DMP, veratryl alcohol, syringaldazine
+- 染料：RBBR, RB5, methylene blue, congo red
+- 多环芳烃 / 异生物质：Benzo[a]pyrene, styrene oxide, aniline, pentachlorophenol
+- 色素假底物：7-ethoxyresorufin, 7-pentoxyresorufin, 7-methoxyresorufin
+- 商品制剂 / 益生菌：Synbiotic A/B/C, BioPlus 2B, Cylactin, inulin
+- 组织 / 粪便残留浓度：turkey tissue, intestinal content, fecal content
+- 其他药物：Coumarin, Nifedipine, Docetaxel, Terfenadine
+- 通用辅因子 / 氧化物：H2O2, GSH, GSSG, NADH, ROS
+
+**⚠️ 未列入清单的霉菌毒素：**
+如果遇到不在上述清单中、但你根据上下文判断是霉菌毒素（mycotoxin / mycotoxin derivative / mycotoxin metabolite）的底物，**正常提取**该记录，但必须设置 `"human_review_required": true` 并在 `notes` 中说明：`"substrate not in predefined whitelist — mycotoxin identity inferred from context"`。
+
+判断依据：
+- 文章明确称其为 mycotoxin / mycotoxin derivative / mycotoxin metabolite / mycotoxin analog
+- 属于已知霉菌毒素家族的结构类似物或代谢产物
+- 出现在霉菌毒素降解/解毒研究的上下文中
+
+❌ 仍必须拒绝：通用酶底物、染料、药物、异生物质等（见上方拒绝清单）。
+
+**示例：**
+- ✅ "Laccase degrades AFB1 with Km = 0.5 µM" → 提取
+- ❌ "Laccase oxidizes ABTS with Km = 2 mM" → 跳过
+- ❌ "BioPlus 2B reduces OTA in turkey diet" → 跳过（非纯化酶）
+- ❌ "GST conjugates AFB1 with GSH (substrate: GSH)" → substrate 写 GSH 时跳过；写 AFB1 时保留
+- ✅ "Enzyme X degrades Ergosine with 80% efficiency" → 提取，human_review_required=true（Ergosine 不在清单但是麦角生物碱家族）
+
+---
+
+## 🛡️ FILTER 2: DEGRADATION FOCUS
+
+接受降解 / 解毒：degraded, hydrolyzed, oxidized, transformed, less toxic, detoxified
+拒绝生物活化：activated, more toxic, AFB1 → AFBO, increased cytotoxicity, carcinogenic metabolite
+不要抽取宿主异生物代谢或 CYP/P450 介导的黄曲霉毒素代谢/活化记录，包括 AFBO、AFQ1、AFM1、DNA/protein adduct、liver microsome、cDNA-expressed CYP、human CYP/P450 kinetics，除非论文明确研究的是用于霉菌毒素降解的非宿主解毒酶。
+
+未提及毒性变化时默认为降解研究。
+
+---
+
+## ✅ ENZYME STATE ACCEPTANCE
+
+| 酶状态 | 关键词 | enzyme_state |
+|--------|--------|------|
+| 游离酶 | free, soluble, purified, native | "free" |
+| 固定化酶 | immobilized, supported, bound, cross-linked, conjugated, adsorbed, entrapped | "immobilized" |
+| 粗酶 | crude extract, crude enzyme, lysate, supernatant | "crude" |
+| 部分纯化 | partially purified, semi-purified | "partially_purified" |
+| 无细胞提取物 | cell-free extract, culture supernatant | "cell_free" |
+| 商业制剂 | commercial preparation, kit | "commercial" |
+
+⚠️ 仍然拒绝：
+- "enzyme cocktail" / "mixed enzymes" / "unknown enzyme from [organism]"
+- "microsomal fraction" / "post-mitochondrial fraction" / "subcellular fraction"（非鉴定酶）
+- 益生菌 / 饲料添加剂的整体配方（不是酶）
+
+---
+
+## 📋 SEQUENCE AVAILABILITY
+
+| sequence_availability | 条件 |
+|---|---|
+| "full_sequence" | 提供完整氨基酸序列 |
+| "database_id" | 有 UniProt / GenBank / PDB ID |
+| "gene_name_only" | 只有基因名 |
+| "none" | 无序列信息 |
+
+---
+
+## 🎯 measurement_type 严格枚举（v8.1 收敛到 2 类）
+
+```
+measurement_type ∈ {"kinetic", "degradation"}
+```
+
+⚠️ **不要再输出**以下类型：stability / biotransformation / enzyme_activity_assay / product_identification / putative_activity / optimum_condition / inhibition / gene_expression / crude_fraction_activity / application_matrix_degradation / ambiguous_conflicting_source。
+
+如果一条数据只能归到上述废弃类别（例如只是定性陈述"X 能降解 Y"，没有 Km/kcat/kcat_Km/degradation_efficiency 数值），**返回空，不要发明记录**。
+
+### kinetic 行
+要求至少一个：Km_value / kcat_value / kcat_Km_value 非空。
+不要提取 Vmax；如果原文只有 Vmax 而没有 Km/kcat/kcat_Km，则该 kinetic measurement 返回空。
+条件填到 kinetic_temperature_value / kinetic_ph / kinetic_time_value 字段。
+
+### degradation 行
+要求 degradation_efficiency 非空（百分比 0-100）。
+条件填到 degradation_temperature_value / degradation_ph / degradation_time_value 字段。
+基质：matrix 字段填 "buffer" / "wheat_flour" / "corn_flour" / "grape_juice" / "apple_juice" / "beer" / "feed" 等具体名。
+吸收原 application_matrix_degradation 与 crude_fraction_activity 两类。
+
+### stability / residual activity / optimum 辅助字段
+本项目不输出 standalone `measurement_type = stability` 或 `measurement_type = optimum_condition`。
+
+如果同一个酶-霉菌毒素底物 record 已经有有效的 `kinetic` 或 `degradation` 核心数值，可以把 stability/optimum 作为辅助字段挂在该 record 上：
+
+- `stability_note`
+- `stability_metric`
+- `stability_value`
+- `stability_unit`
+- `stability_temperature_value`
+- `stability_temperature_unit`
+- `stability_time_value`
+- `stability_time_unit`
+- `optimum_temperature_value`
+- `optimum_temperature_unit`
+- `optimum_ph`
+- `optimum_condition_target`
+
+不要因为只有 stability / residual activity / reuse / storage / Tm / T50 / half-life 就单独创建 record。
+不要把 ABTS、guaiacol、DMP 等普通酶活底物的 optimum/stability 强行挂到霉菌毒素 degradation record，除非原文明确说明该 optimum/stability 是同一个霉菌毒素转化/降解体系的条件。
+
+---
+
+## 🧬 ENZYME NAME RULES
+
+只输出 3 个酶名字段：
+
+- `reported_enzyme_name`：文章原文写法（保留融合标签 / 突变标记）
+- `enzyme_name`：去除融合标签后的核心名（"His6-CotA" → "CotA"；"GST-Laccase" → "Laccase"）
+- `gene_name`：仅当文章明确给出（如 `cotA`, `zenA`）
+
+**不要输出** `canonical_enzyme_name`、`enzyme_full_name`、`enzyme_type`（v8 已废弃）。
+
+### 突变体规则（重要）
+
+每个不同的突变体（包括 wild type）必须独立成行。Os79 WT 和 Os79 H122A/L123A/Q202L 是两条记录。
+
+`mutations` 字段：
+- 野生型：`"WT"` 或 `null`
+- 单突变：`"H122A"`
+- 多突变：`"H122A/L123A/Q202L"`（用 `/` 分隔，按位点升序）
+- 不要把突变信息塞到 `enzyme_name`，更不要让 `enzyme_name = "enzyme system"`
+
+---
+
+## 🚫 DATA TYPE GUARDS
+
+**(a) Specific activity vs degradation_efficiency**
+
+如果文章报 specific activity（U/mg, U/mL, IU/mg），**不要**填到 `degradation_efficiency`。
+v8 schema 没有 specific activity 字段——遇到就 skip 这条 record，不要硬塞。
+（理由：specific activity 是通用酶活，不直接对应"霉菌毒素降解效率"。）
+
+**(b) Km 单位必须是浓度**
+
+`Km_value` 的 `Km_unit` 只能是 µM / mM / nM / M。
+如果数值的单位看起来像 `M^-1 s^-1` 或 `mM^-1 s^-1`，那是 **kcat/Km**，应填到 `kcat_Km_value` + `kcat_Km_unit`。
+
+**(c) kcat 单位必须是时间⁻¹**
+
+`kcat_unit` 只能是 `s^-1` / `min^-1` / `h^-1`。
+
+**(d) degradation_efficiency 范围**
+
+百分比，0-100（允许 ±5% buffer 容错）。如果文章报"7 倍 increase"，不是 degradation，跳过。
+
+---
+
+## 📐 OUTPUT SCHEMA (JSON Array)
+
+每条 record 的字段：
+
+```json
+{
+  "reported_enzyme_name": "string|null",
+  "enzyme_name": "string|null",
+  "gene_name": "string|null",
+  "organism": "string|null",
+  "strain": "string|null",
+  "mutations": "string|null",
+  "is_recombinant": "bool|null",
+  "is_wild_type": "bool|null",
+  "enzyme_state": "free|immobilized|crude|partially_purified|cell_free|commercial|null",
+  "enzyme_system_type": "identified_enzyme|crude_system|subcellular_fraction|fermentation_supernatant|null",
+  "sequence_availability": "full_sequence|database_id|gene_name_only|none",
+  "uniprot_id": "string|null",
+  "genbank_id": "string|null",
+  "pdb_id": "string|null",
+  "sequence": "string|null",
+
+  "substrate": "string (REQUIRED, 必须通过 FILTER 1)",
+  "substrate_smiles": "string|null",
+  "substrate_concentration": "string|number|null",
+  "substrate_concentration_value": "number|null",
+  "substrate_concentration_unit": "string|null",
+  "products": "string|null (分号分隔的产物列表)",
+  "mediator_name": "string|null",
+  "mediator_concentration": "number|null",
+  "mediator_concentration_unit": "string|null",
+
+  "measurement_type": "kinetic|degradation",
+  "matrix": "string|null (degradation 行用)",
+  "is_optimum_condition": "bool",
+
+  "Km_value": "number|null",
+  "Km_unit": "string|null",
+  "kcat_value": "number|null",
+  "kcat_unit": "string|null",
+  "kcat_Km_value": "number|null",
+  "kcat_Km_unit": "string|null",
+  "kinetic_temperature_value": "number|null",
+  "kinetic_temperature_unit": "°C|K|null",
+  "kinetic_ph": "number|null",
+  "kinetic_time_value": "number|null",
+  "kinetic_time_unit": "s|min|h|null",
+
+  "degradation_efficiency": "number|null (0-100)",
+  "degradation_efficiency_unit": "%|null",
+  "degradation_temperature_value": "number|null",
+  "degradation_temperature_unit": "°C|K|null",
+  "degradation_ph": "number|null",
+  "degradation_time_value": "number|null",
+  "degradation_time_unit": "s|min|h|null",
+
+  "stability_note": "string|null (auxiliary only; no standalone stability row)",
+  "stability_metric": "string|null",
+  "stability_value": "number|null",
+  "stability_unit": "string|null",
+  "stability_temperature_value": "number|null",
+  "stability_temperature_unit": "string|null",
+  "stability_time_value": "number|null",
+  "stability_time_unit": "string|null",
+
+  "optimum_temperature_value": "number|null (auxiliary only)",
+  "optimum_temperature_unit": "string|null",
+  "optimum_ph": "number|null",
+  "optimum_condition_target": "string|null",
+
+  "evidence_text": "string (≤500 chars 原文摘录)",
+  "source_section": "abstract|results|methods|discussion|table_X|figure_X",
+  "notes": "string|null",
+  "confidence_score": "1-5",
+  "human_review_required": "bool"
+}
+```
+
+---
+
+## 📋 ONE ROW = ONE MEASUREMENT CONTEXT
+
+每行 = 一个独立测量上下文，由
+**(paper, enzyme, mutation, substrate, measurement_type, matrix, T, pH, time, cofactor)** 唯一确定。
+
+不同条件（不同 T / pH / matrix / mutant / cofactor）必须拆成不同行。
+图 / 表全局条件只在文中明确写"全表 / 全实验适用"时才下传到所有行。
+
+如果摘要与正文 optimum 条件冲突，**不强行选一个值**，跳过该 optimum 行（v8 不输出独立 optimum_condition 类型；如果某 kinetic / degradation 行的条件就是该酶的 optimum，加 `is_optimum_condition: true` 即可）。
+
+---
+
+## 🔬 Targeted Semantic Guard Patch v8.3
+
+### 表格和证据语义
+
+抽取任何表格或文本数值前，先判断 section heading、table title/caption、column headers、row block labels、unit labels、footnotes 和上下文。不要只因为一个数值是百分比、或靠近霉菌毒素名称，就抽成 degradation_efficiency。
+
+如果表格或段落包含多个 enzyme block / substrate block / sample block / treatment block，必须逐块扫描。不要只抽最后一块。`sample #1/#2/#3` 可能代表不同材料或样品，不能自动当作重复实验忽略，除非原文明说它们只是 replicate。
+
+### degradation_efficiency 只接受化学毒素减少/转化指标
+
+只在指标代表 toxin chemical reduction / residual toxin reduction / conversion / transformation / disappearance / removal / degradation 时填 `degradation_efficiency`。有效证据通常来自 HPLC、UPLC、LC-MS/LC-MS/MS、GC-MS、TLC、ELISA toxin concentration、fluorescence/UV toxin concentration，或明确公式如 `(control - sample) / control × 100`。
+
+不要把以下终点填入 `degradation_efficiency`：residual bioluminescence、ecotoxicity、cytotoxicity、cell viability、inhibition rate、LDH、ROS、DNA damage、animal performance、tissue residue、gut microbiota、biomarker enzyme activity、residual toxicity endpoint。
+
+示例：table title 为 "Ecotoxicity of reaction media..." 且 column 为 "Residual Bioluminescence, %" 时，99%、100%、97% 是 toxicity endpoint，不是 toxin degradation efficiency。v8 primary schema 不支持 secondary toxicity records 时，跳过这些行。
+
+如果 `degradation_efficiency` 有数值，必须填 `degradation_efficiency_unit`，通常是 `%`。保留限定词：`>95%`、`more than 95%` 记录为数值 95，并在 `notes` 或 source text 中写明 "Reported as >95%"；`about/approximately/less than` 同理。不要把限定值静默变成精确值。
+
+### products 只限当前论文实验证据
+
+只有当前论文直接鉴定或测量产物时才填 `products`，例如当前实验的 product LC-MS/LC-MS/MS、GC-MS、NMR、HPLC peak identification、m/z、fragment ions、molecular formula 或基于当前数据提出的结构。
+
+不要把 Introduction、literature review、Discussion 引用、"our previous study showed"、"has been reported"、"previously reported"、"according to reference" 中的产物填入当前论文 `products`。如需保留，只能在 `notes` 中标记 `prior_literature_products`。
+
+Product/mechanism evidence 只能挂到对应的当前实验上下文，不能全局传播到所有 kinetic/degradation 行。
+
+### primary 与 secondary 证据边界
+
+Primary record 只保留直接 mycotoxin enzyme-system measurement：霉菌毒素底物的 kinetic 参数、degradation/transformation/conversion efficiency、当前论文产物鉴定、或用霉菌毒素转化活性测试的 enzyme-system stability。
+
+ABTS、pNPP、paraoxon、dye decolorization 等非霉菌毒素底物酶活/动力学是 secondary enzyme activity evidence；cell viability、LDH、ROS、DNA damage、γ-H2AX 等是 cell-level detoxification evidence。v8 primary schema 不支持这些 secondary record 时，跳过，不要强行塞进 kinetic、degradation、products 或 stability 字段。
+
+### stability / temperature context
+
+区分 reaction temperature 和 pretreatment temperature。Reaction temperature 是毒素 degradation/transformation/kinetic assay 发生时的温度。Pretreatment temperature 是 enzyme、lysate、crude extract、supernatant、material 在正式 assay 前被 pre-incubated、heat-treated、boiled、stored 的温度。
+
+如果 enzyme/lysate 先在 20-100 °C 预孵育，再测 AFB1 degradation，这些温度属于 `stability_temperature_value` 或 notes 中的 thermal-stability pretreatment context，不属于普通 `degradation_temperature_value`。
+
+### 禁止自行推算未报告值
+
+不要计算论文没有直接报告的 exact values。不要用 mutant degradation 除以 fold-change 反推 WT degradation efficiency。Fold-change 只能写在 `notes`，不能作为 primary measurement 数值。
+
+### enzyme system context
+
+分开 purified recombinant enzyme、crude lysate、cell-free extract、culture supernatant、fermentation supernatant、whole cell、immobilized enzyme、enzyme nanocomplex、commercial enzyme。`enzyme_state` 必须对应当前 measurement 实际使用的酶形式。纯化 recombinant enzyme 不等于 immobilized enzyme。
+
+如果字段支持，区分 source organism 和 expression host；如果不支持，把表达宿主信息写在 `notes`，不要把 E. coli / Pichia 误当作 enzyme source organism。
+
+保留 transformation type：phosphorylation、conjugation、glycosylation/glucosylation、acetylation、hydrolysis、oxidation/reduction 等不要都泛化成 hydrolysis。
+
+### Thermodynamic table guard
+
+不要把 thermodynamic analysis temperature rows 自动拆成多个 primary Michaelis kinetic records。只有当每个温度行都代表独立拟合的 mycotoxin kinetic experiment 时，才抽成独立 kinetic 行。不要把同一个 kinetic fit 的参数复制到多个 thermodynamic temperature rows。
+
+### 输出前自检
+
+如果仍保留某条记录但存在不确定性，在 `human_review_required=true` 并在 `notes` 中写明原因，例如 `wrong_metric_type_risk`、`product_from_prior_literature_risk`、`possible_table_coverage_FN`、`stability_pretreatment_context`。如果当前 schema 没有合适字段，不要发明新字段；把必要信息保存在 `notes` 和 `evidence_text`。
+
+---
+
+## 📚 REVIEW ARTICLE HANDLING
+
+如果文章是 review / meta-analysis：返回空数组 `[]`。
+v8 不再输出 `review_background` 类型；review 文章的"背景数据"应当从原始文献提取，不在 review 二手提取。
+
+---
+
+## ✅ FINAL OUTPUT FORMAT
+
+返回 JSON array（无 markdown，无前缀解释）：
+
+```json
+[
+  { ... record 1 ... },
+  { ... record 2 ... }
+]
+```
+
+如果该文本块没有任何 v8 合格记录，返回 `[]`。
+
+---
+
+**现在从提供的文本中提取数据：**

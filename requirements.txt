@@ -1,0 +1,34 @@
+# MycoKin-Extractor: Step 1 - Literature Retrieval
+# Python dependencies for multi-source scientific literature search and download
+
+# Core dependencies
+biopython>=1.81          # PubMed/Entrez API access
+requests>=2.31.0         # HTTP requests for API calls
+aiohttp>=3.9.0           # Async HTTP client used by review and LLM utilities
+arxiv>=2.0.0             # arXiv API client
+python-dotenv>=1.0.0     # Environment variable management
+pyyaml>=6.0              # YAML configuration file parsing
+numpy>=1.24.0            # Numeric arrays and model input matrices
+pandas>=2.0.0            # Curated tables and release-data processing
+lxml>=5.0.0              # pandas HTML table parsing
+beautifulsoup4>=4.12.0   # HTML parsing fallback
+html5lib>=1.1            # HTML parsing fallback
+
+# HTTP and SSL
+urllib3>=2.0.0           # Advanced HTTP client features
+certifi>=2023.0.0        # SSL certificate bundle
+
+# LaTeX processing (for text extraction)
+pylatexenc>=2.10         # Convert LaTeX math to Unicode text
+
+# Validation, figures and modelling
+openpyxl>=3.1.0          # Validation workbooks
+matplotlib>=3.7.0        # Manuscript figures
+scikit-learn>=1.3.0      # Regression models and grouped CV
+scipy>=1.10.0            # Statistics
+xgboost>=2.0.0           # XGBoost kinetic modelling baseline
+rdkit>=2023.9.1          # Substrate molecular descriptors
+pytest>=8.0.0            # Test runner
+
+# Optional but recommended
+tqdm>=4.65.0             # Progress bars for downloads

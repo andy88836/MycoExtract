@@ -1,0 +1,99 @@
+# MycoKin-Extractor: v8 Configuration
+# v8 vs v7 changes:
+# - measurement_type collapsed to {kinetic, degradation, stability}
+# - Stability schema standardized (Tm/T50/half_life/residual_activity/...)
+# - Mycotoxin substrate whitelist enforced via QualityConstraintFilter
+# - zero_record_rescue path REMOVED
+# - 5-column enzyme name shrunk to 3 (reported_enzyme_name / enzyme_name / gene_name)
+#
+# See REFACTOR_PROMPT_v8.md in repo root for full rationale.
+
+# ============================================================================
+# LLM Client Configuration
+# ============================================================================
+llm_clients:
+  kimi_client:
+    provider: "moonshot"
+    model_name: "kimi-k2-0905-preview"
+
+  deepseek_client:
+    provider: "deepseek"
+    model_name: "deepseek-chat"
+
+  minimax_client:
+    provider: "minimax"
+    model_name: "MiniMax-M2.7"
+
+  mimo_vision_client:
+    provider: "mimo"
+    model_name: "mimo-v2.5"
+
+  aggregation_client:
+    provider: "mimo"
+    model_name: "mimo-v2.5-pro"
+
+  text_client:
+    provider: "deepseek"
+    model_name: "deepseek-chat"
+
+  multimodal_client:
+    provider: "mimo"
+    model_name: "mimo-v2.5"
+
+  review_client:
+    provider: "mimo"
+    model_name: "mimo-v2.5-pro"
+
+# ============================================================================
+# Extraction Parameters
+# ============================================================================
+extraction_parameters:
+  temperature: 0.1
+  max_text_tokens: 8192
+  max_multimodal_tokens: 8192
+  skip_existing: true
+  clean_references: true
+  max_retries: 5
+  timeout: 600
+  skip_client_test: true
+
+# ============================================================================
+# File Paths - v8 prompts
+# ============================================================================
+file_paths:
+  input_dir: "data/ground_truth/ground_truth_parse"
+  output_json_dir: "results/extraction_json_v8"
+  output_csv_dir: "results/extraction_csv_v8"
+
+  prompt_text: "prompts/prompts_extract_from_text_v8.txt"
+  prompt_table: "prompts/prompts_extract_from_table_v8.txt"
+  prompt_figure: "prompts/prompts_extract_from_table_v8.txt"
+
+# ============================================================================
+# Logging
+# ============================================================================
+logging:
+  level: "INFO"
+  log_file: "extraction_pipeline_v8.log"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+# ============================================================================
+# Processing
+# ============================================================================
+processing:
+  batch_size: 3
+  enable_caching: false
+  enable_figure_extraction: false
+
+# ============================================================================
+# v8 Schema Enforcement
+# ============================================================================
+schema:
+  version: "v8"
+  allowed_measurement_types:
+    - "kinetic"
+    - "degradation"
+    - "stability"
+  enforce_mycotoxin_whitelist: true
+  enzyme_name_columns: 3        # reported_enzyme_name, enzyme_name, gene_name
+  zero_record_rescue: false     # explicitly disabled
